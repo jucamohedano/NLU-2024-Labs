@@ -340,6 +340,8 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, clip=
         slots, intent = model(sample['ids'], attention_mask=sample['mask'], token_type_ids=sample['token_type_ids'], return_dict=False)
         # _, output_1= self.l1(ids, attention_mask = mask, token_type_ids = token_type_ids, return_dict=False)
 
+        slots = slots.permute(0,2,1)
+        print(slots.shape, intent.shape)
         loss_intent = criterion_intents(intent.to(device), sample['intents'])
         loss_slot = criterion_slots(slots.to(device), sample['y_slots'].to(device))
         loss = loss_intent + loss_slot # In joint training we sum the losses. 
