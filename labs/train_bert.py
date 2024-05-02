@@ -93,11 +93,6 @@ if PRINT_DATA_STATS:
     print('TEST size:', len(test_raw))
 
 
-
-w2id = {'pad':PAD_TOKEN} # Pad tokens is 0 so the index count should start from 1
-slot2id = {'pad':PAD_TOKEN} # Pad tokens is 0 so the index count should start from 1
-intent2id = {}
-
 class Lang():
     def __init__(self, words, intents, slots, cutoff=0):
         self.word2id = self.w2id(words, cutoff=cutoff, unk=True)
@@ -322,16 +317,15 @@ test_loader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn)
 
 
 
-# Freeze BERT layers and replace top layers
-# for param in bert_model.parameters():
-#     param.requires_grad = False
-
 class BertJoint(nn.Module):
     def __init__(self):
         super(BertJoint, self).__init__()
 
         # Load pre-trained BERT model
         self.bert = BertModel.from_pretrained('bert-base-uncased')
+        # Freeze BERT layers and replace top layers
+        for param in self.bert.parameters():
+            param.requires_grad = False
         # Define output layers for multi-task learning
         self.slot_classifier = nn.Linear(self.bert.config.hidden_size, out_slot) # token-label classifcation head
         self.intent_classifier = nn.Linear(self.bert.config.hidden_size, out_int) # sentence classification head
@@ -356,6 +350,7 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, clip=
         slots = slots.permute(0,2,1) # to compute loss is necessary to permute
         loss_intent = criterion_intents(intent.to(device), sample['intents'])
         loss_slot = criterion_slots(slots.to(device), sample['y_slots'].to(device))
+        print("loss_slot = %.2f" % loss_slot)
         loss = loss_intent + loss_slot # In joint training we sum the losses. 
                                        # Is there another way to do that?
         loss_array.append(loss.item())
@@ -385,6 +380,7 @@ def eval_loop(data, criterion_slots, criterion_intents, model, lang):
 
             loss_intent = criterion_intents(intents.to(device), sample['intents'])
             loss_slot = criterion_slots(slots.to(device), sample['y_slots'].to(device))
+            print("validation loss_slot = %.2f" % loss_slot)
             loss = loss_intent + loss_slot 
             loss_array.append(loss.item())
             # Intent inference
@@ -400,7 +396,6 @@ def eval_loop(data, criterion_slots, criterion_intents, model, lang):
             
             # Slot inference
             output_slots = torch.argmax(slots, dim=1)
-            print(output_slots.shape)
             for id_seq, seq in enumerate(output_slots):
                 length = sample['slots_len'][id_seq]
                 utt_ids = sample['ids'][id_seq][:length].tolist() # get the sequence without the padding 0s
@@ -433,11 +428,11 @@ def eval_loop(data, criterion_slots, criterion_intents, model, lang):
 
 
 bert_model = BertJoint()
-optimizer = optim.Adam(bert_model.parameters(), lr=0.0001)
+optimizer = optim.Adam(bert_model.parameters(), lr=0.001)
 criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
 criterion_intents = nn.CrossEntropyLoss()
 
-n_epochs = 25
+n_epochs = 100
 patience = 5
 losses_train = []
 losses_dev = []
@@ -456,6 +451,9 @@ for x in tqdm(range(1,n_epochs)):
         losses_dev.append(np.asarray(loss_dev).mean())
         
         f1 = results_dev['total']['f']
+        print('Validation Slot F1: ', results_dev['total']['f'])
+        print('Validation Intent Accuracy:', intent_res['accuracy'])
+        
         # For decreasing the patience you can also use the average between slot f1 and intent accuracy
         if f1 > best_f1:
             best_f1 = f1
@@ -466,7 +464,7 @@ for x in tqdm(range(1,n_epochs)):
         if patience <= 0: # Early stopping with patience
             break # Not nice but it keeps the code clean
 
-results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
-                                         criterion_intents, bert_model, lang)    
-print('Slot F1: ', results_test['total']['f'])
-print('Intent Accuracy:', intent_test['accuracy'])
+# results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
+#                                          criterion_intents, bert_model, lang)    
+# print('Slot F1: ', results_test['total']['f'])
+# print('Intent Accuracy:', intent_test['accuracy'])
