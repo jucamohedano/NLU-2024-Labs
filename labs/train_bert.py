@@ -1,15 +1,33 @@
 # Global variables
 import os
+import json
+from pprint import pprint
+from collections import Counter
+import numpy as np
+from sklearn.model_selection import train_test_split
+import torch.nn as nn
+from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
+# BERT model script from: huggingface.co
+from transformers import BertTokenizer, BertModel
+from pprint import pprint
+import torch
+import torch.utils.data as data
+from torch.utils.data import DataLoader
+from conll import evaluate
+from sklearn.metrics import classification_report
+import torch.optim as optim
+from tqdm import tqdm
+
 device = "cuda:0" #means we are using the GPU with id 0, if you have multiple GPU
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1" # Used to report errors on CUDA side
+
 PAD_TOKEN = 0
 PRINT_DATA_STATS=0
 
 lr = 0.0001 # learning rate
 clip = 5 # Clip the gradient
 
-import json
-from pprint import pprint
+
 
 def load_data(path):
     '''
@@ -29,10 +47,7 @@ if PRINT_DATA_STATS:
     print('Test samples:', len(test_raw))
 
 
-import random
-import numpy as np
-from sklearn.model_selection import train_test_split
-from collections import Counter
+
 
 # First we get the 10% of the training set, then we compute the percentage of these examples 
 
@@ -78,13 +93,11 @@ if PRINT_DATA_STATS:
     print('TEST size:', len(test_raw))
 
 
-from collections import Counter
 
 w2id = {'pad':PAD_TOKEN} # Pad tokens is 0 so the index count should start from 1
 slot2id = {'pad':PAD_TOKEN} # Pad tokens is 0 so the index count should start from 1
 intent2id = {}
 
-from collections import Counter
 class Lang():
     def __init__(self, words, intents, slots, cutoff=0):
         self.word2id = self.w2id(words, cutoff=cutoff, unk=True)
@@ -126,19 +139,14 @@ out_int = len(lang.intent2id)
 vocab_len = len(lang.word2id)
 
 
-import torch.nn as nn
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-# BERT model script from: huggingface.co
-from transformers import BertTokenizer, BertModel
-from pprint import pprint
+
 
 
 
 # Load BERT tokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-import torch
-import torch.utils.data as data
+
 
 class BertIntentsAndSlots(data.Dataset):
     """
@@ -308,7 +316,6 @@ def collate_fn(data):
     return new_item
 
 
-from torch.utils.data import DataLoader
 train_loader = DataLoader(train_dataset, batch_size=128, collate_fn=collate_fn, shuffle=True)
 dev_loader = DataLoader(dev_dataset, batch_size=64, collate_fn=collate_fn)
 test_loader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn)
@@ -359,8 +366,7 @@ def train_loop(data, optimizer, criterion_slots, criterion_intents, model, clip=
     return loss_array
 
 
-from conll import evaluate
-from sklearn.metrics import classification_report
+
 def eval_loop(data, criterion_slots, criterion_intents, model, lang):
     model.eval()
     loss_array = []
@@ -424,8 +430,7 @@ def eval_loop(data, criterion_slots, criterion_intents, model, lang):
 
 
 # Define optimizer
-import torch.optim as optim
-from tqdm import tqdm
+
 
 bert_model = BertJoint()
 optimizer = optim.Adam(bert_model.parameters(), lr=0.0001)
