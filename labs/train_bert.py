@@ -462,6 +462,7 @@ for x in tqdm(range(1,n_epochs)):
         else:
             patience -= 1
         if patience <= 0: # Early stopping with patience
+            print("no more patience, finishing training")
             break # Not nice but it keeps the code clean
 
 # results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
