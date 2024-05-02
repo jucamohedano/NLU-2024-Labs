@@ -432,7 +432,7 @@ optimizer = optim.Adam(bert_model.parameters(), lr=0.0001)
 criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
 criterion_intents = nn.CrossEntropyLoss()
 
-n_epochs = 2
+n_epochs = 25
 patience = 5
 losses_train = []
 losses_dev = []
@@ -443,23 +443,23 @@ best_f1 = 0
 for x in tqdm(range(1,n_epochs)):
     loss = train_loop(train_loader, optimizer, criterion_slots, 
                       criterion_intents, bert_model, clip=clip)
-    # if x % 1 == 0: # We check the performance every 5 epochs
-    sampled_epochs.append(x)
-    losses_train.append(np.asarray(loss).mean())
-    results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
-                                                    criterion_intents, bert_model, lang)
-    losses_dev.append(np.asarray(loss_dev).mean())
-    
-    f1 = results_dev['total']['f']
-    # For decreasing the patience you can also use the average between slot f1 and intent accuracy
-    if f1 > best_f1:
-        best_f1 = f1
-        # Here you should save the model
-        patience = 5
-    else:
-        patience -= 1
-    if patience <= 0: # Early stopping with patience
-        break # Not nice but it keeps the code clean
+    if x % 5 == 0: # We check the performance every 5 epochs
+        sampled_epochs.append(x)
+        losses_train.append(np.asarray(loss).mean())
+        results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
+                                                        criterion_intents, bert_model, lang)
+        losses_dev.append(np.asarray(loss_dev).mean())
+        
+        f1 = results_dev['total']['f']
+        # For decreasing the patience you can also use the average between slot f1 and intent accuracy
+        if f1 > best_f1:
+            best_f1 = f1
+            # Here you should save the model
+            patience = 5
+        else:
+            patience -= 1
+        if patience <= 0: # Early stopping with patience
+            break # Not nice but it keeps the code clean
 
 results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
                                          criterion_intents, bert_model, lang)    
