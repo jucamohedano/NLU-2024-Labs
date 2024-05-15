@@ -1,22 +1,20 @@
 # Global variables
 import os
 import json
-from pprint import pprint
-from collections import Counter
 import numpy as np
-from sklearn.model_selection import train_test_split
+import torch
 import torch.nn as nn
-from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
-# BERT model script from: huggingface.co
+import torch.utils.data as data
+import torch.optim as optim
+
+from sklearn.model_selection import train_test_split
 from transformers import BertTokenizer, BertModel
 from pprint import pprint
-import torch
-import torch.utils.data as data
+from collections import Counter
 from torch.utils.data import DataLoader
-from conll import evaluate
 from sklearn.metrics import classification_report
-import torch.optim as optim
 from tqdm import tqdm
+from conll import evaluate
 
 device = "cuda" #means we are using the GPU with id 0, if you have multiple GPU
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1" # Used to report errors on CUDA side
