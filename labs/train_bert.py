@@ -18,16 +18,13 @@ from sklearn.metrics import classification_report
 import torch.optim as optim
 from tqdm import tqdm
 
-device = "cuda:0" #means we are using the GPU with id 0, if you have multiple GPU
+device = "cuda" #means we are using the GPU with id 0, if you have multiple GPU
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1" # Used to report errors on CUDA side
 
 PAD_TOKEN = 0
 PRINT_DATA_STATS=0
-
-lr = 0.0001 # learning rate
-clip = 5 # Clip the gradient
-
-
+LR = 1e-3 # learning rate
+CLIP = 5 # Clip the gradient
 
 def load_data(path):
     '''
@@ -47,10 +44,7 @@ if PRINT_DATA_STATS:
     print('Test samples:', len(test_raw))
 
 
-
-
 # First we get the 10% of the training set, then we compute the percentage of these examples 
-
 portion = 0.10
 
 intents = [x['intent'] for x in tmp_train_raw] # We stratify on intents
@@ -95,22 +89,22 @@ if PRINT_DATA_STATS:
 
 class Lang():
     def __init__(self, words, intents, slots, cutoff=0):
-        self.word2id = self.w2id(words, cutoff=cutoff, unk=True)
+        # self.word2id = self.w2id(words, cutoff=cutoff, unk=True)
         self.slot2id = self.lab2id(slots)
         self.intent2id = self.lab2id(intents, pad=False)
-        self.id2word = {v:k for k, v in self.word2id.items()}
+        # self.id2word = {v:k for k, v in self.word2id.items()}
         self.id2slot = {v:k for k, v in self.slot2id.items()}
         self.id2intent = {v:k for k, v in self.intent2id.items()}
         
-    def w2id(self, elements, cutoff=None, unk=True):
-        vocab = {'pad': PAD_TOKEN}
-        if unk:
-            vocab['unk'] = len(vocab)
-        count = Counter(elements)
-        for k, v in count.items():
-            if v > cutoff:
-                vocab[k] = len(vocab)
-        return vocab
+    # def w2id(self, elements, cutoff=None, unk=True):
+    #     vocab = {'pad': PAD_TOKEN}
+    #     if unk:
+    #         vocab['unk'] = len(vocab)
+    #     count = Counter(elements)
+    #     for k, v in count.items():
+    #         if v > cutoff:
+    #             vocab[k] = len(vocab)
+    #     return vocab
     
     def lab2id(self, elements, pad=True):
         vocab = {}
@@ -131,17 +125,12 @@ intents = set([line['intent'] for line in corpus])
 lang = Lang(words, intents, slots, cutoff=0)
 out_slot = len(lang.slot2id)
 out_int = len(lang.intent2id)
-vocab_len = len(lang.word2id)
-
-
-
+# vocab_len = len(lang.word2id)
 
 
 
 # Load BERT tokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
-
-
 
 class BertIntentsAndSlots(data.Dataset):
     """
@@ -163,6 +152,7 @@ class BertIntentsAndSlots(data.Dataset):
         # sep_token = tokenizer.sep_token
         # unk_token = tokenizer.unk_token
         # pad_token_id = tokenizer.pad_token_id
+        self.unk = unk
 
         self.utterances = []
         self.intents = []
@@ -197,18 +187,19 @@ class BertIntentsAndSlots(data.Dataset):
                             #    padding=True,
                             #    max_length=200,
                             #    pad_to_max_length=True,
-                               return_token_type_ids=True)
+                               return_token_type_ids=False)
                 
         ids = utt_inputs['input_ids']
         mask = utt_inputs['attention_mask']
-        token_type_ids = utt_inputs["token_type_ids"]
+        # token_type_ids = utt_inputs["token_type_ids"]
 
         return {
-            'ids': torch.tensor(ids, dtype=torch.long),
-            'mask': torch.tensor(mask, dtype=torch.long),
-            'token_type_ids': torch.tensor(token_type_ids, dtype=torch.long),
+            'ids': ids.clone().long(), #torch.tensor(ids, dtype=torch.long),
+            'mask': mask.clone().long(), #torch.tensor(mask, dtype=torch.long),
+            # 'token_type_ids': torch.tensor(token_type_ids, dtype=torch.long),
             'slots' : torch.tensor(slots, dtype=torch.long), #.squeeze(), # unsqueeze so that we add an extra dim so that we can take .shape[1] in merge function
-            'intent': intent
+            'intent': intent,
+            'utt': utt
         }
     
     def mapping_lab(self, data, mapper):
@@ -230,20 +221,15 @@ class BertIntentsAndSlots(data.Dataset):
         :return: List of tokenized and mapped sequences.
         """
         res = []
-        # print(data)
-        # print(100*"y")
-        # print(self.utterances)
         for seq, utt in zip(data, self.utterances):
             tmp_seq = []
-            # example of slot: print(seq)= O O O O O O O O B-fromloc.city_name O B-toloc.city_name
+            # example of seq: 'O O O O O O O O B-fromloc.city_name O B-toloc.city_name'
+            # example of utt: 'what is the cost for these flights from baltimore to philadelphia'
+            assert len(seq.split()) == len(utt.split()), f"seq: {seq}, utt: {utt}" # sanity check
             for x, w in zip(seq.split(), utt.split()):
                 tokenized_word = tokenizer(w)['input_ids'][1:-1] # don't take the [CLS] and [SEP] tokens
-                # if len(tokenized_word) > 1:
-                #     print(tokenized_word, tokenizer.convert_ids_to_tokens(tokenized_word))
                 if x in mapper:
-                    tmp_seq.extend([mapper[x]] + [PAD_TOKEN]*(len(tokenized_word)-1)) # Example: [ [ID][PAD][PAD][PAD] ]
-                    # if len(tokenized_word) > 1:
-                    #     print([mapper[x]] + [PAD_TOKEN]*(len(tokenized_word)-1))
+                    tmp_seq.extend([mapper[x]] + [PAD_TOKEN]*(len(tokenized_word)-1)) # only map the 1st token and add padding for the rest
                 else:
                     tmp_seq.extend(mapper[self.unk])
                 
@@ -288,32 +274,29 @@ def collate_fn(data):
 
     # We just need one length for packed pad seq, since len(utt) == len(slots)
     src_utt, _ = merge(new_item['ids'])
-    src_utt.to(device)
     mask, _ = merge(new_item['mask'])
-    mask.to(device)
-    token_type_ids, _ = merge(new_item['token_type_ids'])
-    token_type_ids.to(device)
     y_slots, y_lengths = merge(new_item["slots"])
-    y_slots.to(device)
-    # y_lengths.to(device)
     intent = torch.LongTensor(new_item["intent"]).to(device)
+    src_utt.to(device)
+    mask.to(device)
+    y_slots.to(device)
     intent.to(device)
-    # print(100*'*')
-    # print(y_slots.shape)
-    # print(100*'*')
+
+    assert src_utt.shape == y_slots.shape == mask.shape, \
+        f"src_utt: {src_utt.shape}, y_slots: {y_slots.shape}, mask: {mask.shape}"
+    assert src_utt.shape[0] == intent.shape[0], f"intent: {intent.shape}"
     
     new_item["ids"] = src_utt
     new_item["mask"] = mask
-    new_item["token_type_ids"] = token_type_ids
-    new_item["intents"] = intent
+    new_item["intent"] = intent
     new_item["y_slots"] = y_slots
     new_item["slots_len"] = y_lengths
     return new_item
 
 
 train_loader = DataLoader(train_dataset, batch_size=128, collate_fn=collate_fn, shuffle=True)
-dev_loader = DataLoader(dev_dataset, batch_size=64, collate_fn=collate_fn)
-test_loader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn)
+dev_loader = DataLoader(dev_dataset, batch_size=10, collate_fn=collate_fn)
+test_loader = DataLoader(test_dataset, batch_size=10, collate_fn=collate_fn)
 
 
 
@@ -330,29 +313,25 @@ class BertJoint(nn.Module):
         self.slot_classifier = nn.Linear(self.bert.config.hidden_size, out_slot) # token-label classifcation head
         self.intent_classifier = nn.Linear(self.bert.config.hidden_size, out_int) # sentence classification head
     
-    def forward(self, input_ids, attention_mask, token_type_ids,):
-        slots, intent = self.bert(input_ids, attention_mask, token_type_ids, return_dict=False) # sequence_output, pooled_output, (hidden_states), (attentions)
+    def forward(self, input_ids, attention_mask):
+        slots, intent = self.bert(input_ids, attention_mask, return_dict=False) # sequence_output, pooled_output, (hidden_states), (attentions)
 
         slot_logits = self.slot_classifier(slots)
         intent_logits = self.intent_classifier(intent)
         return slot_logits, intent_logits
 
 
-def train_loop(data, optimizer, criterion_slots, criterion_intents, model, clip=5):
+def train_loop(data, optimizer, criterion_slots, criterion_intents, model, clip=CLIP):
     model.train()
     loss_array = []
     for sample in data:
         optimizer.zero_grad() # Zeroing the gradient
-        slots, intent = model(sample['ids'], attention_mask=sample['mask'], token_type_ids=sample['token_type_ids'])
-        # _, output_1= self.l1(ids, attention_mask = mask, token_type_ids = token_type_ids, return_dict=False)
-        # print(slots.shape, intent.shape)
-        # print(sample['y_slots'].shape, sample['intents'].shape)
+        assert sample['ids'].shape[0] == sample['mask'].shape[0] #== sample['y_slots'].shape[0] == sample['slots_len'].shape[0] == sample['intents'].shape[0]
+        slots, intent = model(sample['ids'], attention_mask=sample['mask'])
         slots = slots.permute(0,2,1) # to compute loss is necessary to permute
-        loss_intent = criterion_intents(intent.to(device), sample['intents'])
+        loss_intent = criterion_intents(intent.to(device), sample['intent'])
         loss_slot = criterion_slots(slots.to(device), sample['y_slots'].to(device))
-        print("loss_slot = %.2f" % loss_slot)
         loss = loss_intent + loss_slot # In joint training we sum the losses. 
-                                       # Is there another way to do that?
         loss_array.append(loss.item())
         loss.backward() # Compute the gradient, deleting the computational graph
         # clip the gradient to avoid exploding gradients
@@ -374,23 +353,21 @@ def eval_loop(data, criterion_slots, criterion_intents, model, lang):
     #softmax = nn.Softmax(dim=1) # Use Softmax if you need the actual probability
     with torch.no_grad(): # It used to avoid the creation of computational graph
         for sample in data:
-            slots, intents = model(sample['ids'], attention_mask=sample['mask'], token_type_ids=sample['token_type_ids'])
+            slots, intents = model(sample['ids'], attention_mask=sample['mask'])
             # slots, intents = model(sample['utterances'], sample['slots_len'])
             slots = slots.permute(0,2,1)
 
-            loss_intent = criterion_intents(intents.to(device), sample['intents'])
+            loss_intent = criterion_intents(intents.to(device), sample['intent'])
             loss_slot = criterion_slots(slots.to(device), sample['y_slots'].to(device))
-            print("validation loss_slot = %.2f" % loss_slot)
+            # print("validation loss_slot = %.2f" % loss_slot)
             loss = loss_intent + loss_slot 
             loss_array.append(loss.item())
+            
             # Intent inference
             # Get the highest probable class
-            # print(intents.shape)
-            # print(torch.argmax(intents, dim=1))
-
             out_intents = [lang.id2intent[x]
                            for x in torch.argmax(intents, dim=1).tolist()] 
-            gt_intents = [lang.id2intent[x] for x in sample['intents'].tolist()]
+            gt_intents = [lang.id2intent[x] for x in sample['intent'].tolist()]
             ref_intents.extend(gt_intents)
             hyp_intents.extend(out_intents)
             
@@ -398,19 +375,34 @@ def eval_loop(data, criterion_slots, criterion_intents, model, lang):
             output_slots = torch.argmax(slots, dim=1)
             for id_seq, seq in enumerate(output_slots):
                 length = sample['slots_len'][id_seq]
-                utt_ids = sample['ids'][id_seq][:length].tolist() # get the sequence without the padding 0s
+                utt_ids = sample['ids'][id_seq][1:length-1].tolist() # get the sequence without the padding 0s
                 gt_ids = sample['y_slots'][id_seq].tolist()
-                gt_slots = [lang.id2slot[elem] for elem in gt_ids[:length]]
+                gt_slots = [lang.id2slot[elem] for elem in gt_ids[1:length-1]]
+                # must covert ids to tokens word by word to match them to the iob labels
                 utterance = tokenizer.convert_ids_to_tokens(utt_ids)
                 # utterance = [lang.id2word[elem] for elem in utt_ids]
-                to_decode = seq[:length].tolist()
-                ref_slots.append([(utterance[id_el], elem) for id_el, elem in enumerate(gt_slots)])
+                # utterance = sample['utt'][id_seq].split()
+                to_decode = seq[1:length-1].tolist()
+                # ref_slots.append([(utterance[id_el], elem) for id_el, elem in enumerate(gt_slots)])
                 tmp_seq = []
-                for id_el, elem in enumerate(to_decode):
-                    tmp_seq.append((utterance[id_el], lang.id2slot[elem]))
+                tmp_ref = []
+                assert len(to_decode) == len(gt_slots)
+                for id_el, slot_label in enumerate(gt_slots):
+                    if slot_label == 'pad':
+                        w = tmp_ref[-1][0]+utterance[id_el] # merge wordpieces
+                        _, label = tmp_ref.pop() # pop incomplete word
+                        tmp_ref.append((w, label)) # add newly constructed word
+                        continue
+                    tmp_ref.append((utterance[id_el], slot_label))
+                    to_decode_id = to_decode[id_el]
+                    tmp_seq.append((utterance[id_el], lang.id2slot[to_decode_id]))
+                # hyp_slots.append(tmp_seq)
+                # tmp_seq.append((utterance[id_el], lang.id2slot[slot_label]) for id_el, slot_label in enumerate(to_decode))
                 hyp_slots.append(tmp_seq)
+                ref_slots.append(tmp_ref)
+
     try:            
-        results = evaluate(ref_slots, hyp_slots)
+         results = evaluate(ref_slots, hyp_slots)
     except Exception as ex:
         # Sometimes the model predicts a class that is not in REF
         print("Warning:", ex)
@@ -428,12 +420,12 @@ def eval_loop(data, criterion_slots, criterion_intents, model, lang):
 
 
 bert_model = BertJoint()
-optimizer = optim.Adam(bert_model.parameters(), lr=0.001)
+optimizer = optim.Adam(bert_model.parameters(), lr=LR)
 criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
 criterion_intents = nn.CrossEntropyLoss()
 
 n_epochs = 100
-patience = 5
+patience = 15
 losses_train = []
 losses_dev = []
 sampled_epochs = []
@@ -442,28 +434,28 @@ best_f1 = 0
 
 for x in tqdm(range(1,n_epochs)):
     loss = train_loop(train_loader, optimizer, criterion_slots, 
-                      criterion_intents, bert_model, clip=clip)
-    if x % 5 == 0: # We check the performance every 5 epochs
-        sampled_epochs.append(x)
-        losses_train.append(np.asarray(loss).mean())
-        results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
-                                                        criterion_intents, bert_model, lang)
-        losses_dev.append(np.asarray(loss_dev).mean())
-        
-        f1 = results_dev['total']['f']
-        print('Validation Slot F1: ', results_dev['total']['f'])
-        print('Validation Intent Accuracy:', intent_res['accuracy'])
-        
-        # For decreasing the patience you can also use the average between slot f1 and intent accuracy
-        if f1 > best_f1:
-            best_f1 = f1
-            # Here you should save the model
-            patience = 5
-        else:
-            patience -= 1
-        if patience <= 0: # Early stopping with patience
-            print("no more patience, finishing training")
-            break # Not nice but it keeps the code clean
+                      criterion_intents, bert_model, clip=CLIP)
+    # if x % 5 == 0: # We check the performance every 5 epochs
+        # sampled_epochs.append(x)
+    losses_train.append(np.asarray(loss).mean())
+    results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
+                                                    criterion_intents, bert_model, lang)
+    losses_dev.append(np.asarray(loss_dev).mean())
+    
+    f1 = results_dev['total']['f']
+    print('Validation Slot F1: ', results_dev['total']['f'])
+    print('Validation Intent Accuracy:', intent_res['accuracy'])
+    
+    # For decreasing the patience you can also use the average between slot f1 and intent accuracy
+    if f1 > best_f1:
+        best_f1 = f1
+        # Here you should save the model
+        patience = 5
+    else:
+        patience -= 1
+    if patience <= 0: # Early stopping with patience
+        print("no more patience, finishing training")
+        break # Not nice but it keeps the code clean
 
 # results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
 #                                          criterion_intents, bert_model, lang)    
