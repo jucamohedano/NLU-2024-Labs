@@ -37,75 +37,70 @@ def conlleval(data, otag='O'):
     seg = stats()
     cls = {}
 
-    try:
-        for sent in data:
+    for sent in data:
 
-            prev_ref = otag      # previous reference label
-            prev_hyp = otag      # previous hypothesis label
-            prev_ref_iob = None  # previous reference label IOB
-            prev_hyp_iob = None  # previous hypothesis label IOB
+        prev_ref = otag      # previous reference label
+        prev_hyp = otag      # previous hypothesis label
+        prev_ref_iob = None  # previous reference label IOB
+        prev_hyp_iob = None  # previous hypothesis label IOB
 
-            in_correct = False  # currently processed chunks is correct until now
+        in_correct = False  # currently processed chunks is correct until now
 
-            for token in sent:
-                print(token)
-                hyp_iob, hyp = parse_iob(token[-1])
-                ref_iob, ref = parse_iob(token[-2])
+        for token in sent:
 
-                ref_e = is_eoc(ref, ref_iob, prev_ref, prev_ref_iob, otag)
-                hyp_e = is_eoc(hyp, hyp_iob, prev_hyp, prev_hyp_iob, otag)
+            hyp_iob, hyp = parse_iob(token[-1])
+            ref_iob, ref = parse_iob(token[-2])
 
-                ref_b = is_boc(ref, ref_iob, prev_ref, prev_ref_iob, otag)
-                hyp_b = is_boc(hyp, hyp_iob, prev_hyp, prev_hyp_iob, otag)
+            ref_e = is_eoc(ref, ref_iob, prev_ref, prev_ref_iob, otag)
+            hyp_e = is_eoc(hyp, hyp_iob, prev_hyp, prev_hyp_iob, otag)
 
-                if not cls.get(ref) and ref:
-                    cls[ref] = stats()
+            ref_b = is_boc(ref, ref_iob, prev_ref, prev_ref_iob, otag)
+            hyp_b = is_boc(hyp, hyp_iob, prev_hyp, prev_hyp_iob, otag)
 
-                if not cls.get(hyp) and hyp:
-                    cls[hyp] = stats()
+            if not cls.get(ref) and ref:
+                cls[ref] = stats()
 
-                # segment-level counts
-                if in_correct:
-                    if ref_e and hyp_e and prev_hyp == prev_ref:
-                        in_correct = False
-                        seg['cor'] += 1
-                        cls[prev_ref]['cor'] += 1
+            if not cls.get(hyp) and hyp:
+                cls[hyp] = stats()
 
-                    elif ref_e != hyp_e or hyp != ref:
-                        in_correct = False
-
-                if ref_b and hyp_b and hyp == ref:
-                    in_correct = True
-
-                if ref_b:
-                    seg['ref'] += 1
-                    cls[ref]['ref'] += 1
-
-                if hyp_b:
-                    seg['hyp'] += 1
-                    cls[hyp]['hyp'] += 1
-
-                # token-level counts
-                if ref == hyp and ref_iob == hyp_iob:
-                    tok['cor'] += 1
-
-                tok['ref'] += 1
-
-                prev_ref = ref
-                prev_hyp = hyp
-                prev_ref_iob = ref_iob
-                prev_hyp_iob = hyp_iob
-
+            # segment-level counts
             if in_correct:
-                seg['cor'] += 1
-                cls[prev_ref]['cor'] += 1
+                if ref_e and hyp_e and prev_hyp == prev_ref:
+                    in_correct = False
+                    seg['cor'] += 1
+                    cls[prev_ref]['cor'] += 1
+
+                elif ref_e != hyp_e or hyp != ref:
+                    in_correct = False
+
+            if ref_b and hyp_b and hyp == ref:
+                in_correct = True
+
+            if ref_b:
+                seg['ref'] += 1
+                cls[ref]['ref'] += 1
+
+            if hyp_b:
+                seg['hyp'] += 1
+                cls[hyp]['hyp'] += 1
+
+            # token-level counts
+            if ref == hyp and ref_iob == hyp_iob:
+                tok['cor'] += 1
+
+            tok['ref'] += 1
+
+            prev_ref = ref
+            prev_hyp = hyp
+            prev_ref_iob = ref_iob
+            prev_hyp_iob = hyp_iob
+
+        if in_correct:
+            seg['cor'] += 1
+            cls[prev_ref]['cor'] += 1
 
 
-        return summarize(seg, cls)
-    except Exception as e:
-        print(f"Error occurred: {e}")
-        return None
-
+    return summarize(seg, cls)
 
 
 def parse_iob(t):
