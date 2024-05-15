@@ -146,12 +146,6 @@ class BertIntentsAndSlots(data.Dataset):
         :param lang: Language object containing mapping information.
         :param unk: Unknown token (default is 'unk').
         """
-
-        # Setting based on the current model type
-        # cls_token = tokenizer.cls_token
-        # sep_token = tokenizer.sep_token
-        # unk_token = tokenizer.unk_token
-        # pad_token_id = tokenizer.pad_token_id
         self.unk = unk
 
         self.utterances = []
@@ -184,19 +178,14 @@ class BertIntentsAndSlots(data.Dataset):
 
         utt_inputs = tokenizer(utt, 
                                return_tensors="pt", 
-                            #    padding=True,
-                            #    max_length=200,
-                            #    pad_to_max_length=True,
                                return_token_type_ids=False)
                 
         ids = utt_inputs['input_ids']
         mask = utt_inputs['attention_mask']
-        # token_type_ids = utt_inputs["token_type_ids"]
 
         return {
             'ids': ids.clone().long(), #torch.tensor(ids, dtype=torch.long),
             'mask': mask.clone().long(), #torch.tensor(mask, dtype=torch.long),
-            # 'token_type_ids': torch.tensor(token_type_ids, dtype=torch.long),
             'slots' : torch.tensor(slots, dtype=torch.long), #.squeeze(), # unsqueeze so that we add an extra dim so that we can take .shape[1] in merge function
             'intent': intent,
             'utt': utt
@@ -257,9 +246,7 @@ def collate_fn(data):
         for i, seq in enumerate(sequences):
             end = lengths[i]
             padded_seqs[i, :end] = seq # We copy each sequence into the matrix
-        # print(padded_seqs)
         padded_seqs = padded_seqs.detach()  # We remove these tensors from the computational graph
-        # print(type(padded_seqs), type(lengths), len(padded_seqs), len(lengths))
         return padded_seqs, lengths
     
     # create an empty array of -100 of length max_length
@@ -297,7 +284,6 @@ def collate_fn(data):
 train_loader = DataLoader(train_dataset, batch_size=128, collate_fn=collate_fn, shuffle=True)
 dev_loader = DataLoader(dev_dataset, batch_size=10, collate_fn=collate_fn)
 test_loader = DataLoader(test_dataset, batch_size=10, collate_fn=collate_fn)
-
 
 
 class BertJoint(nn.Module):
@@ -378,26 +364,23 @@ def eval_loop(data, criterion_slots, criterion_intents, model, lang):
                 utt_ids = sample['ids'][id_seq][1:length-1].tolist() # get the sequence without the padding 0s
                 gt_ids = sample['y_slots'][id_seq].tolist()
                 gt_slots = [lang.id2slot[elem] for elem in gt_ids[1:length-1]]
-                # must covert ids to tokens word by word to match them to the iob labels
                 utterance = tokenizer.convert_ids_to_tokens(utt_ids)
-                # utterance = [lang.id2word[elem] for elem in utt_ids]
-                # utterance = sample['utt'][id_seq].split()
                 to_decode = seq[1:length-1].tolist()
-                # ref_slots.append([(utterance[id_el], elem) for id_el, elem in enumerate(gt_slots)])
                 tmp_seq = []
                 tmp_ref = []
                 assert len(to_decode) == len(gt_slots)
                 for id_el, slot_label in enumerate(gt_slots):
                     if slot_label == 'pad':
-                        w = tmp_ref[-1][0]+utterance[id_el] # merge wordpieces
+                        # If a word is split into multiple tokens, then it merges back into one single word-token
+                        # for the sake of evaluation, e.g. tokenize(['whats'])=['[CLS]', 'what', "'", 's', '[SEP]']
+                        # instead we want to put back together what's for the purpose of slot labeling
+                        w = tmp_ref[-1][0]+utterance[id_el] # merge wordpieces. 
                         _, label = tmp_ref.pop() # pop incomplete word
                         tmp_ref.append((w, label)) # add newly constructed word
                         continue
                     tmp_ref.append((utterance[id_el], slot_label))
                     to_decode_id = to_decode[id_el]
                     tmp_seq.append((utterance[id_el], lang.id2slot[to_decode_id]))
-                # hyp_slots.append(tmp_seq)
-                # tmp_seq.append((utterance[id_el], lang.id2slot[slot_label]) for id_el, slot_label in enumerate(to_decode))
                 hyp_slots.append(tmp_seq)
                 ref_slots.append(tmp_ref)
 
@@ -435,29 +418,29 @@ best_f1 = 0
 for x in tqdm(range(1,n_epochs)):
     loss = train_loop(train_loader, optimizer, criterion_slots, 
                       criterion_intents, bert_model, clip=CLIP)
-    # if x % 5 == 0: # We check the performance every 5 epochs
-        # sampled_epochs.append(x)
-    losses_train.append(np.asarray(loss).mean())
-    results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
-                                                    criterion_intents, bert_model, lang)
-    losses_dev.append(np.asarray(loss_dev).mean())
-    
-    f1 = results_dev['total']['f']
-    print('Validation Slot F1: ', results_dev['total']['f'])
-    print('Validation Intent Accuracy:', intent_res['accuracy'])
-    
-    # For decreasing the patience you can also use the average between slot f1 and intent accuracy
-    if f1 > best_f1:
-        best_f1 = f1
-        # Here you should save the model
-        patience = 5
-    else:
-        patience -= 1
-    if patience <= 0: # Early stopping with patience
-        print("no more patience, finishing training")
-        break # Not nice but it keeps the code clean
+    if x % 5 == 0: # We check the performance every 5 epochs
+        sampled_epochs.append(x)
+        losses_train.append(np.asarray(loss).mean())
+        results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
+                                                        criterion_intents, bert_model, lang)
+        losses_dev.append(np.asarray(loss_dev).mean())
+        
+        f1 = results_dev['total']['f']
+        print('Validation Slot F1: ', results_dev['total']['f'])
+        print('Validation Intent Accuracy:', intent_res['accuracy'])
+        
+        # For decreasing the patience you can also use the average between slot f1 and intent accuracy
+        if f1 > best_f1:
+            best_f1 = f1
+            # Here you should save the model
+            patience = 5
+        else:
+            patience -= 1
+        if patience <= 0: # Early stopping with patience
+            print("no more patience, finishing training")
+            break # Not nice but it keeps the code clean
 
-# results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
-#                                          criterion_intents, bert_model, lang)    
-# print('Slot F1: ', results_test['total']['f'])
-# print('Intent Accuracy:', intent_test['accuracy'])
+results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
+                                         criterion_intents, bert_model, lang)    
+print('Slot F1: ', results_test['total']['f'])
+print('Intent Accuracy:', intent_test['accuracy'])
