@@ -28,6 +28,12 @@ EPOCHS = 100
 PATIENCE = 5
 BATCH_SIZE = 128
 
+# Set your Wandb token
+wandb_token = os.environ["WANDB_TOKEN"]
+
+# Login to wandb
+wandb.login(key=wandb_token)
+
 # Initialize wandb
 wandb.init(project="nlu-assignmet2-bert")
 
