@@ -424,40 +424,43 @@ losses_dev = []
 sampled_epochs = []
 best_f1 = 0
 
+try:
+    for x in tqdm(range(1,EPOCHS)):
+        loss = train_loop(train_loader, optimizer, criterion_slots, 
+                        criterion_intents, bert_model, clip=CLIP)
+        # Log training loss to wandb
+        wandb.log({"train_loss": torch.mean(loss).item()})
+        if x % 5 == 0: # We check the performance every 5 epochs
+            sampled_epochs.append(x)
+            losses_train.append(np.asarray(loss).mean())
+            results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
+                                                            criterion_intents, bert_model, lang)
+            losses_dev.append(np.asarray(loss_dev).mean())
+            
+            f1 = results_dev['total']['f']
+            print('Validation Slot F1: ', results_dev['total']['f'])
+            print('Validation Intent Accuracy:', intent_res['accuracy'])
+            
+            # Log validation loss to wandb
+            wandb.log({"val_loss": torch.mean(loss_dev).item()})
+            
+            # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
+            if f1 > best_f1:
+                best_f1 = f1
+                # Here you should save the model
+                PATIENCE = 5
+            else:
+                PATIENCE -= 1
+            if PATIENCE <= 0: # Early stopping with patience
+                print("no more patience, finishing training")
+                break # Not nice but it keeps the code clean
 
-for x in tqdm(range(1,EPOCHS)):
-    loss = train_loop(train_loader, optimizer, criterion_slots, 
-                      criterion_intents, bert_model, clip=CLIP)
-    # Log training loss to wandb
-    wandb.log({"train_loss": torch.mean(loss).item()})
-    if x % 5 == 0: # We check the performance every 5 epochs
-        sampled_epochs.append(x)
-        losses_train.append(np.asarray(loss).mean())
-        results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
-                                                        criterion_intents, bert_model, lang)
-        losses_dev.append(np.asarray(loss_dev).mean())
-        
-        f1 = results_dev['total']['f']
-        print('Validation Slot F1: ', results_dev['total']['f'])
-        print('Validation Intent Accuracy:', intent_res['accuracy'])
-        
-        # Log validation loss to wandb
-        wandb.log({"val_loss": torch.mean(loss_dev).item()})
-        
-        # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
-        if f1 > best_f1:
-            best_f1 = f1
-            # Here you should save the model
-            PATIENCE = 5
-        else:
-            PATIENCE -= 1
-        if PATIENCE <= 0: # Early stopping with patience
-            print("no more patience, finishing training")
-            break # Not nice but it keeps the code clean
-
-results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
-                                         criterion_intents, bert_model, lang)    
-print('Slot F1: ', results_test['total']['f'])
-print('Intent Accuracy:', intent_test['accuracy'])
-# Log test metrics to wandb
-wandb.log({"test_slot_f1": results_test["total"]["f"], "test_intent_accuracy": intent_test["accuracy"]})
+    results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
+                                            criterion_intents, bert_model, lang)    
+    print('Slot F1: ', results_test['total']['f'])
+    print('Intent Accuracy:', intent_test['accuracy'])
+    # Log test metrics to wandb
+    wandb.log({"test_slot_f1": results_test["total"]["f"], "test_intent_accuracy": intent_test["accuracy"]})
+except KeyboardInterrupt:
+    print("KeyboardInterrupt detected. Stopping Wandb logging.")
+    wandb.join()
