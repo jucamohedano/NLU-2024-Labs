@@ -429,7 +429,7 @@ for x in tqdm(range(1,EPOCHS)):
     loss = train_loop(train_loader, optimizer, criterion_slots, 
                       criterion_intents, bert_model, clip=CLIP)
     # Log training loss to wandb
-    wandb.log({"train_loss": loss})
+    wandb.log({"train_loss": torch.mean(loss).item()})
     if x % 5 == 0: # We check the performance every 5 epochs
         sampled_epochs.append(x)
         losses_train.append(np.asarray(loss).mean())
@@ -442,7 +442,7 @@ for x in tqdm(range(1,EPOCHS)):
         print('Validation Intent Accuracy:', intent_res['accuracy'])
         
         # Log validation loss to wandb
-        wandb.log({"val_loss": loss_dev})
+        wandb.log({"val_loss": torch.mean(loss_dev).item()})
         
         # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
         if f1 > best_f1:
