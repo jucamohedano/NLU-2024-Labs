@@ -14,6 +14,8 @@ from torch.utils.data import DataLoader
 from sklearn.metrics import classification_report
 from tqdm import tqdm
 from conll import evaluate
+import wandb
+
 
 device = "cuda" #means we are using the GPU with id 0, if you have multiple GPU
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1" # Used to report errors on CUDA side
@@ -22,6 +24,18 @@ PAD_TOKEN = 0
 PRINT_DATA_STATS=0
 LR = 1e-3 # learning rate
 CLIP = 5 # Clip the gradient
+EPOCHS = 100
+PATIENCE = 5
+BATCH_SIZE = 128
+
+# Initialize wandb
+wandb.init(project="nlu-assignmet2-bert")
+
+# Define your config
+config = wandb.config
+config.epochs = 100
+config.learning_rate = 0.001
+config.batch_size = BATCH_SIZE
 
 def load_data(path):
     '''
@@ -278,7 +292,7 @@ def collate_fn(data):
     return new_item
 
 
-train_loader = DataLoader(train_dataset, batch_size=128, collate_fn=collate_fn, shuffle=True)
+train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=collate_fn, shuffle=True)
 dev_loader = DataLoader(dev_dataset, batch_size=10, collate_fn=collate_fn)
 test_loader = DataLoader(test_dataset, batch_size=10, collate_fn=collate_fn)
 
@@ -404,17 +418,18 @@ optimizer = optim.Adam(bert_model.parameters(), lr=LR)
 criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
 criterion_intents = nn.CrossEntropyLoss()
 
-n_epochs = 100
-patience = 15
+
 losses_train = []
 losses_dev = []
 sampled_epochs = []
 best_f1 = 0
 
 
-for x in tqdm(range(1,n_epochs)):
+for x in tqdm(range(1,EPOCHS)):
     loss = train_loop(train_loader, optimizer, criterion_slots, 
                       criterion_intents, bert_model, clip=CLIP)
+    # Log training loss to wandb
+    wandb.log({"train_loss": loss})
     if x % 5 == 0: # We check the performance every 5 epochs
         sampled_epochs.append(x)
         losses_train.append(np.asarray(loss).mean())
@@ -426,14 +441,17 @@ for x in tqdm(range(1,n_epochs)):
         print('Validation Slot F1: ', results_dev['total']['f'])
         print('Validation Intent Accuracy:', intent_res['accuracy'])
         
-        # For decreasing the patience you can also use the average between slot f1 and intent accuracy
+        # Log validation loss to wandb
+        wandb.log({"val_loss": loss_dev})
+        
+        # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
         if f1 > best_f1:
             best_f1 = f1
             # Here you should save the model
-            patience = 5
+            PATIENCE = 5
         else:
-            patience -= 1
-        if patience <= 0: # Early stopping with patience
+            PATIENCE -= 1
+        if PATIENCE <= 0: # Early stopping with patience
             print("no more patience, finishing training")
             break # Not nice but it keeps the code clean
 
@@ -441,3 +459,5 @@ results_test, intent_test, _ = eval_loop(test_loader, criterion_slots,
                                          criterion_intents, bert_model, lang)    
 print('Slot F1: ', results_test['total']['f'])
 print('Intent Accuracy:', intent_test['accuracy'])
+# Log test metrics to wandb
+wandb.log({"test_slot_f1": results_test["total"]["f"], "test_intent_accuracy": intent_test["accuracy"]})
