@@ -5,26 +5,18 @@ from torch.nn.utils.rnn import pack_padded_sequence, pad_packed_sequence
 
 class ModelIAS(nn.Module):
 
-    def __init__(self, hid_size, out_slot, out_int, emb_size, vocab_len, n_layer=1, pad_index=0):
-        super(ModelIAS, self).__init__()
-        # hid_size = Hidden size
-        # out_slot = number of slots (output size for slot filling)
-        # out_int = number of intents (output size for intent class)
-        # emb_size = word embedding size
+    def __init__(self, hid_size, out_slot, out_int, emb_size, vocab_len, dropout_p=0.1, n_layer=1, pad_index=0):
+        super(ModelIAS, self).__init__()       
         
         self.embedding = nn.Embedding(vocab_len, emb_size, padding_idx=pad_index)
-        
         # Add biodirectionality to the LSTM layer. As a result the size of the hidden states is doubled
         self.utt_encoder = nn.LSTM(emb_size, hid_size, n_layer, bidirectional=True, batch_first=True)
         self.slot_out = nn.Linear(hid_size * 2, out_slot)
         self.intent_out = nn.Linear(hid_size * 2, out_int)
-        # Dropout layer How/Where do we apply it?
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(dropout_p)
         
     def forward(self, utterance, seq_lengths):
-        # utterance.size() = batch_size X seq_len
         utt_emb = self.embedding(utterance) # utt_emb.size() = batch_size X seq_len X emb_size
-        
         utt_emb = self.dropout(utt_emb) # we can use dropout after the embedding layer
 
         # pack_padded_sequence avoid computation over pad tokens reducing the computational cost

@@ -40,10 +40,6 @@ if __name__ == "__main__":
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    hid_size = 200
-    emb_size = 300
-    lr = 0.0001 # learning rate
-    clip = 5 # Clip the gradient
     PAD_TOKEN = 0
 
     # load data
@@ -102,41 +98,66 @@ if __name__ == "__main__":
     dev_loader = DataLoader(dev_dataset, batch_size=64, collate_fn=collate_fn)
     test_loader = DataLoader(test_dataset, batch_size=64, collate_fn=collate_fn)
 
-    BATCH_SIZE =128
+    BATCH_SIZE = 128
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device),  shuffle=True)
     dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
 
+    # Initialize model
+    hid_size = 200
+    emb_size = 300
     model = ModelIAS(hid_size, out_slot, out_int, emb_size, vocab_len, pad_index=PAD_TOKEN).to(device)
     model.apply(init_weights)
+
+    # hyperparams
+    n_epochs = 200
+    losses_train = []
+    losses_dev = []
+    sampled_epochs = []
+    best_f1 = 0
+    PATIENCE = 3
+    lr = 0.0001 # learning rate
+    clip = 5 # Clip the gradient
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
     criterion_intents = nn.CrossEntropyLoss() # Because we do not have the pad token
 
+    #wandb: Define your config
+    config = wandb.config
+    config.epochs = n_epochs
+    config.learning_rate = lr
+    config.batch_size = BATCH_SIZE
+    config.emb_size = emb_size
+    config.hidden_size = hid_size
+    # config.dropout_emb = drop_p
+    # config.dropout_lstm = drop_k
+    # config.weight_decay = w_decay
+    # config.num_lstm_layers = n_layers
+    # config.ntasgd_interval = ntasgd_interval
+    # config.momentum = 0.9
+    config.patience = PATIENCE
 
-    n_epochs = 200
-    patience = 3
-    losses_train = []
-    losses_dev = []
-    sampled_epochs = []
-    best_f1 = 0
     for x in tqdm(range(1,n_epochs)):
         loss = train_loop(train_loader, optimizer, criterion_slots, 
                         criterion_intents, model, clip=clip)
+        # Log training loss to wandb
+        wandb.log({"train_loss": np.asarray(loss).mean()})
         if x % 5 == 0: # We check the performance every 5 epochs
             sampled_epochs.append(x)
             losses_train.append(np.asarray(loss).mean())
             results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
                                                         criterion_intents, model, lang)
             losses_dev.append(np.asarray(loss_dev).mean())
-            
             f1 = results_dev['total']['f']
+            # Log validation loss to wandb
+            wandb.log({"val_loss": np.asarray(loss_dev).mean()})
+            wandb.log({"f1": f1})
             # For decreasing the patience you can also use the average between slot f1 and intent accuracy
             if f1 > best_f1:
                 best_f1 = f1
                 # Here you should save the model
-                patience = 3
+                patience = PATIENCE
             else:
                 patience -= 1
             if patience <= 0: # Early stopping with patience
@@ -146,3 +167,11 @@ if __name__ == "__main__":
                                             criterion_intents, model, lang)    
     print('Slot F1: ', results_test['total']['f'])
     print('Intent Accuracy:', intent_test['accuracy'])
+
+    # To save the model
+    path = 'bin/best_model.pt'
+    torch.save(model.state_dict(), path)
+    # To load the model you need to initialize it
+    # model = LM_LSTM(emb_size, hid_size, vocab_len, pad_index=lang.word2id["<pad>"]).to(device)
+    # Then you load it
+    # model.load_state_dict(torch.load(path))
