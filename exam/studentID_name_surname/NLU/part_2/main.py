@@ -1,38 +1,32 @@
 # This file is used to run your functions and print the results
 # Please write your fuctions or classes in the functions.py
 
+import os
+import wandb
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 
-from tqdm import tqdm
 from utils import Lang
-
-from model import *
 from utils import *
-from tqdm import tqdm
-
-import numpy as np
-import torch.optim as optim
-from functools import partial
-from torch.utils.data import DataLoader
-import wandb
-import os
-from sklearn.model_selection import train_test_split
-# Import everything from functions.py file
+from model import *
 from functions import *
+from tqdm import tqdm
+from functools import partial
 from collections import Counter
 from transformers import BertTokenizer
+from torch.utils.data import DataLoader
+from sklearn.model_selection import train_test_split
 
 
 # Set your Wandb token
-# wandb_token = os.environ["WANDB_TOKEN"]
+wandb_token = os.environ["WANDB_TOKEN"]
 
 # # Login to wandb
-# wandb.login(key=wandb_token)
+wandb.login(key=wandb_token)
 
 # # Initialize wandb
-# wandb.init(project="nlu-assignmet2-part2-bert", allow_val_change=True)
+wandb.init(project="nlu-assignmet2-part2-bert", allow_val_change=True)
 
 if __name__ == "__main__":
     #Wrtite the code to load the datasets and to run your functions
@@ -116,17 +110,17 @@ if __name__ == "__main__":
     criterion_intents = nn.CrossEntropyLoss()
 
     #wandb: Define your config
-    # config = wandb.config
-    # config.epochs = n_epochs
-    # config.learning_rate = lr
-    # config.batch_size = BATCH_SIZE
-    # config.patience = PATIENCE
+    config = wandb.config
+    config.epochs = n_epochs
+    config.learning_rate = lr
+    config.batch_size = BATCH_SIZE
+    config.patience = PATIENCE
 
     for x in tqdm(range(1,n_epochs)):
         loss = train_loop(train_loader, optimizer, criterion_slots, 
                         criterion_intents, bert_model, device, clip=CLIP)
         # Log training loss to wandb
-        # wandb.log({"train_loss": np.asarray(loss).mean()})
+        wandb.log({"train_loss": np.asarray(loss).mean()})
         if x % 5 == 0: # We check the performance every 5 epochs
             sampled_epochs.append(x)
             losses_train.append(np.asarray(loss).mean())
@@ -139,8 +133,8 @@ if __name__ == "__main__":
             print('Validation Intent Accuracy:', intent_res['accuracy'])
             
             # Log validation loss to wandb
-            # wandb.log({"val_loss": np.asarray(loss_dev).mean()})
-            # wandb.log({"f1": f1})
+            wandb.log({"val_loss": np.asarray(loss_dev).mean()})
+            wandb.log({"f1": f1})
             
             # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
             if f1 > best_f1:
