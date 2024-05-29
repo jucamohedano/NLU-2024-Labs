@@ -148,7 +148,7 @@ if __name__ == "__main__":
                 break # Not nice but it keeps the code clean
 
     results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
-                                            criterion_intents, bert_model, lang)    
+                                            criterion_intents, bert_model, lang, tokenizer, device)    
     print('Slot F1: ', results_test['total']['f'])
     print('Intent Accuracy:', intent_test['accuracy'])
     # Log test metrics to wandb
