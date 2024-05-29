@@ -92,7 +92,7 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
 
     # Create model
-    bert_model = BertJoint(out_slot, out_int)
+    bert_model = BertJoint(out_slot, out_int).to(device)
 
     # hyperparams
     losses_train = []
