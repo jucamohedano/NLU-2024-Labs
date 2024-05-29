@@ -161,10 +161,9 @@ def collate_fn(data, pad_token, device):
     mask, _ = merge(new_item['mask'])
     y_slots, y_lengths = merge(new_item["slots"])
     intent = torch.LongTensor(new_item["intent"]).to(device)
-    src_utt.to(device)
-    mask.to(device)
-    y_slots.to(device)
-    intent.to(device)
+    src_utt = src_utt.to(device)
+    mask = mask.to(device)
+    y_slots = y_slots.to(device)
 
     assert src_utt.shape == y_slots.shape == mask.shape, \
         f"src_utt: {src_utt.shape}, y_slots: {y_slots.shape}, mask: {mask.shape}"
