@@ -111,7 +111,7 @@ if __name__ == "__main__":
                 losses_dev.append(np.asarray(loss_dev).mean())
                 
                 ot_precision = results_dev['ot_precision']
-                ot_recall = results_dev['ote_recall']
+                ot_recall = results_dev['ot_recall']
                 ot_f1 = results_dev['ote_f1']
                 print(f'Validation Precision: {ot_precision} | Validation Recall: {ot_recall} | Validation Slot F1-score: {ot_f1}')
                 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
         results_test, _ = eval_loop(test_loader, criterion_slots, 
                                             bert_model, lang, tokenizer, device)    
         ot_precision = results_test['ot_precision']
-        ot_recall = results_test['ote_recall']
+        ot_recall = results_test['ot_recall']
         ot_f1 = results_test['ote_f1']
         print(f'Test Precision: {ot_precision} | Test Recall: {ot_recall} | Test Slot F1-score: {ot_f1}')
         
