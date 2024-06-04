@@ -3,6 +3,7 @@
 
 import os
 import wandb
+import argparse
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
@@ -13,53 +14,68 @@ from model import *
 from functions import *
 from tqdm import tqdm
 from functools import partial
-from collections import Counter
 from transformers import BertTokenizer
 from torch.utils.data import DataLoader
-from sklearn.model_selection import train_test_split
 
 
-# Set your Wandb token
-wandb_token = os.environ["WANDB_TOKEN"]
+def init_args():
+    parser = argparse.ArgumentParser(description="Bert training for ABSA task")
+    parser.add_argument("-mode", type=str, default='eval', help="Model mode: train or eval")
+    return parser.parse_args()
 
-# # Login to wandb
-wandb.login(key=wandb_token)
+def init_wandb():
+    # Set your Wandb token
+    wandb_token = os.environ["WANDB_TOKEN"]
 
-# # Initialize wandb
-wandb.init(project="nlu-assignmet2-part2-bert", allow_val_change=True)
+    # # Login to wandb
+    wandb.login(key=wandb_token)
+
+    # # Initialize wandb
+    wandb.init(project="nlu-assignmet3-part1", allow_val_change=True)
+
 
 if __name__ == "__main__":
     #Wrtite the code to load the datasets and to run your functions
     # Print the results
+    args = init_args()
+    mode = args.mode
+    print(f'Running script in mode: {mode}. If you desire to change it use the -mode argument, i.e. python main.py -mode eval')
+    model_path = 'bin/best_model.pt'
+
+    if mode == 'train':
+        init_wandb()
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    PAD_TOKEN = 0
+    print(f'The device selected: {device}')
 
     # load data
-    train, val, test, vocab, char_vocab, ote_tag_vocab, ts_tag_vocab = data_loader()
+    train, val, test, vocab, _, ote_tag_vocab, ts_tag_vocab = data_loader()
 
-    # slots = set(sum([line['slots'].split() for line in corpus],[]))
-    slots = list(ts_tag_vocab.keys())
+    # PAD_TOKEN = vocab['PADDING']
+    # PUNCT_TOKEN = vocab['PUNCT']
+    PUNCT_TOKEN = PAD_TOKEN = 0
+    slots = list(ote_tag_vocab.keys())
 
-    lang = Lang(slots, pad_token=0)
+    lang = Lang(slots, pad_token=PAD_TOKEN, punct_token=PUNCT_TOKEN)
     out_slot = len(lang.slot2id)
 
     # Load BERT tokenizer
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
-    train_dataset = BertIntentsAndSlots(train, lang, tokenizer=tokenizer, pad_token=PAD_TOKEN)
-    dev_dataset = BertIntentsAndSlots(val, lang, tokenizer=tokenizer, pad_token=PAD_TOKEN)
-    test_dataset = BertIntentsAndSlots(test, lang, tokenizer=tokenizer, pad_token=PAD_TOKEN)
+    # ote_tags because we only want to predict the aspect, ts_tags also predict sentiment
+    train_dataset = BertABSADataset(train, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_token=PAD_TOKEN, punct_token=PUNCT_TOKEN)
+    dev_dataset = BertABSADataset(val, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_token=PAD_TOKEN, punct_token=PUNCT_TOKEN)
+    test_dataset = BertABSADataset(test, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_token=PAD_TOKEN, punct_token=PUNCT_TOKEN)
 
     # Dataloader instantiations
     BATCH_SIZE = 128
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device),  shuffle=True)
     dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
-
+    
     # Create model
-    bert_model = BertJoint(out_slot, out_int).to(device)
-
+    bert_model = BertABSAModel(out_slot).to(device)
+    
     # hyperparams
     losses_train = []
     losses_dev = []
@@ -73,56 +89,56 @@ if __name__ == "__main__":
     # Define optimizer
     optimizer = optim.Adam(bert_model.parameters(), lr=lr)
     criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
-    criterion_intents = nn.CrossEntropyLoss()
 
-    #wandb: Define your config
-    config = wandb.config
-    config.epochs = n_epochs
-    config.learning_rate = lr
-    config.batch_size = BATCH_SIZE
-    config.patience = PATIENCE
+    config = None
+    if mode == 'train':
+        #wandb: Define your config
+        config = wandb.config
+        config.epochs = n_epochs
+        config.learning_rate = lr
+        config.batch_size = BATCH_SIZE
+        config.patience = PATIENCE
 
-    for x in tqdm(range(1,n_epochs)):
-        loss = train_loop(train_loader, optimizer, criterion_slots, 
-                        criterion_intents, bert_model, device, clip=CLIP)
-        # Log training loss to wandb
-        wandb.log({"train_loss": np.asarray(loss).mean()})
-        if x % 5 == 0: # We check the performance every 5 epochs
-            sampled_epochs.append(x)
-            losses_train.append(np.asarray(loss).mean())
-            results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
-                                                            criterion_intents, bert_model, lang, tokenizer, device)
-            losses_dev.append(np.asarray(loss_dev).mean())
-            
-            f1 = results_dev['total']['f']
-            print('Validation Slot F1: ', results_dev['total']['f'])
-            print('Validation Intent Accuracy:', intent_res['accuracy'])
-            
-            # Log validation loss to wandb
-            wandb.log({"val_loss": np.asarray(loss_dev).mean()})
-            wandb.log({"f1": f1})
-            
-            # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
-            if f1 > best_f1:
-                best_f1 = f1
-                # Here you should save the model
-                patience = PATIENCE
-            else:
-                patience -= 1
-            if patience <= 0: # Early stopping with patience
-                print("no more patience, finishing training")
-                break # Not nice but it keeps the code clean
+    if mode == 'train':
+        for x in tqdm(range(1,n_epochs)):
+            loss = train_loop(train_loader, optimizer, criterion_slots, 
+                            bert_model, device, clip=CLIP)
+            # Log training loss to wandb
+            if mode == 'train': wandb.log({"train_loss": np.asarray(loss).mean()})
+            if x % 5 == 0: # We check the performance every 5 epochs
+                sampled_epochs.append(x)
+                losses_train.append(np.asarray(loss).mean())
+                results_dev, loss_dev = eval_loop(dev_loader, criterion_slots, 
+                                                                bert_model, lang, tokenizer, device)
+                losses_dev.append(np.asarray(loss_dev).mean())
+                
+                f1 = results_dev['total']['f']
+                print('Validation Slot F1-score: ', results_dev['total']['f'])
+                
+                if mode == 'train':
+                    # Log validation loss to wandb
+                    wandb.log({"val_loss": np.asarray(loss_dev).mean()})
+                    wandb.log({"f1-score": f1})
+                
+                # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
+                if f1 > best_f1:
+                    best_f1 = f1
+                    # save best model!
+                    model_info = {'state_dict': bert_model.state_dict(), 'lang':lang}
+                    torch.save(model_info, model_path)
+                    patience = PATIENCE
+                else:
+                    patience -= 1
+                if patience <= 0: # Early stopping with patience
+                    print("no more patience, finishing training")
+                    break # Not nice but it keeps the code clean
 
-    results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
-                                            criterion_intents, bert_model, lang)    
-    print('Slot F1: ', results_test['total']['f'])
-    print('Intent Accuracy:', intent_test['accuracy'])
-    # Log test metrics to wandb
-
-    # To save the model
-    path = 'bin/best_model.pt'
-    torch.save(bert_model.state_dict(), path)
-    # To load the model you need to initialize it
-    # model = LM_LSTM(emb_size, hid_size, vocab_len, pad_index=lang.word2id["<pad>"]).to(device)
-    # Then you load it
-    # model.load_state_dict(torch.load(path))
+    else:
+        # Load model
+        checkpoint = torch.load(model_path)
+        lang = checkpoint['lang']
+        bert_model = BertABSAModel(out_slot).to(device)
+        bert_model.load_state_dict(checkpoint['model'])
+        results_test, _ = eval_loop(test_loader, criterion_slots, 
+                                            bert_model, lang, tokenizer, device)    
+        print('F1-score: ', results_test['total']['f'])
