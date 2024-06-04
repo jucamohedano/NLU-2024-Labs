@@ -31,16 +31,12 @@ def eval_loop(data, criterion_slots, model, lang, tokenizer, device):
     model.eval()
     loss_array = []
     
-    ref_intents = []
-    hyp_intents = []
-    
     ref_slots = []
     hyp_slots = []
     #softmax = nn.Softmax(dim=1) # Use Softmax if you need the actual probability
     with torch.no_grad(): # It used to avoid the creation of computational graph
         for sample in data:
             slots = model(sample['ids'], attention_mask=sample['mask'])
-            # slots, intents = model(sample['utterances'], sample['slots_len'])
             slots = slots.permute(0,2,1)
 
             loss_slot = criterion_slots(slots.to(device), sample['y_slots'].to(device))
@@ -71,6 +67,9 @@ def eval_loop(data, criterion_slots, model, lang, tokenizer, device):
                         continue
                     tmp_ref.append((utterance[id_el], slot_label))
                     to_decode_id = to_decode[id_el]
+                    # assume that PAD_TOKEN and PUNCT_TOKEN are the same
+                    # We use PAD_TOKEN=PUNCT_TOKEN=0 as in training so that we use ignore_index=0 in CE loss
+                    if to_decode_id == 1: to_decode_id = 0
                     tmp_seq.append((utterance[id_el], lang.id2slot[to_decode_id]))
                 hyp_slots.append(tmp_seq)
                 ref_slots.append(tmp_ref)
@@ -85,6 +84,4 @@ def eval_loop(data, criterion_slots, model, lang, tokenizer, device):
         print(hyp_s.difference(ref_s))
         results = {"total":{"f":0}}
         
-    report_intent = classification_report(ref_intents, hyp_intents, 
-                                          zero_division=False, output_dict=True)
-    return results, report_intent, loss_array
+    return results, loss_array
