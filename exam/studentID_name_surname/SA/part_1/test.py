@@ -42,9 +42,9 @@ dev_dataset = BertABSA(val, lang, tokenizer=tokenizer, tagging_scheme='ote_tags'
 test_dataset = BertABSA(test, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_token=PAD_TOKEN, punct_token=PUNCT_TOKEN)
 
 BATCH_SIZE = 8
-train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device),  shuffle=True)
-dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
-# test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
+# train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device),  shuffle=True)
+# dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
+test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
 bert_model = BertJoint(out_slot).to(device)
 # bert_model.resize_token_embeddings(len(tokenizer)) # due to adding a new token
 
@@ -64,38 +64,38 @@ criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
 
 
 
-for x in tqdm(range(1,n_epochs)):
-    loss = train_loop(train_loader, optimizer, criterion_slots, 
-                    bert_model, device, clip=CLIP)
-    # Log training loss to wandb
-    # wandb.log({"train_loss": np.asarray(loss).mean()})
-    if x % 5 == 0: # We check the performance every 5 epochs
-        sampled_epochs.append(x)
-        losses_train.append(np.asarray(loss).mean())
-        results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
-                                                        bert_model, lang, tokenizer, device)
-        losses_dev.append(np.asarray(loss_dev).mean())
+# for x in tqdm(range(1,n_epochs)):
+#     loss = train_loop(train_loader, optimizer, criterion_slots, 
+#                     bert_model, device, clip=CLIP)
+#     # Log training loss to wandb
+#     # wandb.log({"train_loss": np.asarray(loss).mean()})
+#     if x % 5 == 0: # We check the performance every 5 epochs
+#         sampled_epochs.append(x)
+#         losses_train.append(np.asarray(loss).mean())
+#         results_dev, intent_res, loss_dev = eval_loop(dev_loader, criterion_slots, 
+#                                                         bert_model, lang, tokenizer, device)
+#         losses_dev.append(np.asarray(loss_dev).mean())
         
-        f1 = results_dev['total']['f']
-        print('Validation Slot F1: ', results_dev['total']['f'])
-        print('Validation Intent Accuracy:', intent_res['accuracy'])
+#         f1 = results_dev['total']['f']
+#         print('Validation Slot F1: ', results_dev['total']['f'])
+#         print('Validation Intent Accuracy:', intent_res['accuracy'])
         
         # Log validation loss to wandb
         # wandb.log({"val_loss": np.asarray(loss_dev).mean()})
         # wandb.log({"f1": f1})
         
         # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
-        if f1 > best_f1:
-            best_f1 = f1
-            # Here you should save the model
-            patience = PATIENCE
-        else:
-            patience -= 1
-        if patience <= 0: # Early stopping with patience
-            print("no more patience, finishing training")
-            break # Not nice but it keeps the code clean
+        # if f1 > best_f1:
+        #     best_f1 = f1
+        #     # Here you should save the model
+        #     patience = PATIENCE
+        # else:
+        #     patience -= 1
+        # if patience <= 0: # Early stopping with patience
+        #     print("no more patience, finishing training")
+        #     break # Not nice but it keeps the code clean
 
-# results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
-#                                         criterion_intents, bert_model, lang)    
+results_test, _ = eval_loop(test_loader, criterion_slots, 
+                                         bert_model, lang, tokenizer, device)    
 # print('Slot F1: ', results_test['total']['f'])
 # print('Intent Accuracy:', intent_test['accuracy'])
