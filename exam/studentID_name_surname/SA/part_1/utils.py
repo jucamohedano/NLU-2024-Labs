@@ -217,8 +217,7 @@ def collate_fn(data, pad_token, device):
     return new_item
 
 
-def data_loader():
-    parser = argparse.ArgumentParser(description="Open Domain ABSA")
+def data_loader(parser):
     parser.add_argument("-ds_name", type=str, default='laptop14', help="dataset name")
     # dimension of LSTM hidden representations
     parser.add_argument("-dim_char", type=int, default=30, help="dimension of char embeddings")
