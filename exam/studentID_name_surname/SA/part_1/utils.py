@@ -36,7 +36,7 @@ class Lang():
 def merge_lists(list_of_lists):
     return [item for sublist in list_of_lists for item in sublist]
 
-class BertABSA(data.Dataset):
+class BertABSADataset(data.Dataset):
     """
     Custom PyTorch dataset class for intent classification and slot filling tasks.
     """
