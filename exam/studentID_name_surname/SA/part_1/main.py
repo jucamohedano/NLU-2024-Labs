@@ -82,6 +82,7 @@ if __name__ == "__main__":
     n_epochs = 100
     CLIP = 5
     PATIENCE = 3
+    patience = PATIENCE
     lr = 0.00001
 
     # Define optimizer
