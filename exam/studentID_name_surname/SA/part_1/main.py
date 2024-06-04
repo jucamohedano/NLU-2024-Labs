@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader
 def init_args():
     parser = argparse.ArgumentParser(description="Bert training for ABSA task")
     parser.add_argument("-mode", type=str, default='eval', help="Model mode: train or eval")
-    return parser.parse_args()
+    return parser
 
 def init_wandb():
     # Set your Wandb token
@@ -35,21 +35,19 @@ def init_wandb():
 
 
 if __name__ == "__main__":
-    #Wrtite the code to load the datasets and to run your functions
-    # Print the results
-    args = init_args()
-    mode = args.mode
-    print(f'Running script in mode: {mode}. If you desire to change it use the -mode argument, i.e. python main.py -mode eval')
-    model_path = 'bin/best_model.pt'
-
-    if mode == 'train':
-        init_wandb()
 
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'The device selected: {device}')
 
     # load data
-    train, val, test, vocab, _, ote_tag_vocab, ts_tag_vocab = data_loader()
+    parser = init_args()
+    model_path = 'bin/best_model.pt'
+
+    mode = parser.parse_args().mode
+    if mode == 'train':
+        init_wandb()
+    print(f'Running script in mode: {mode}. If you desire to change it use the -mode argument, i.e. python main.py -mode eval')
+    train, val, test, vocab, _, ote_tag_vocab, ts_tag_vocab = data_loader(parser)
 
     # PAD_TOKEN = vocab['PADDING']
     # PUNCT_TOKEN = vocab['PUNCT']
