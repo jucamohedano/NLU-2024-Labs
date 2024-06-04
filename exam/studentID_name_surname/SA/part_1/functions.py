@@ -75,13 +75,14 @@ def eval_loop(data, criterion_slots, model, lang, tokenizer, device):
                 ref_slots.append(tmp_ref)
 
     try:            
-         results = evaluate_ote(ref_slots, hyp_slots)
+        ot_precision, ot_recall, ot_f1 = evaluate_ote(ref_slots, hyp_slots)
+        results = {"ot_precision": ot_precision, "ot_recall":ot_recall, "ot_f1":ot_f1}
     except Exception as ex:
         # Sometimes the model predicts a class that is not in REF
         print("Warning:", ex)
         ref_s = set([x[1] for x in ref_slots])
         hyp_s = set([x[1] for x in hyp_slots])
         print(hyp_s.difference(ref_s))
-        results = {"total":{"f":0}}
+        results = {"ot_precision": 0, "ot_recall":0, "ot_f1":0}
         
     return results, loss_array

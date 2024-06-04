@@ -110,17 +110,22 @@ if __name__ == "__main__":
                                                                 bert_model, lang, tokenizer, device)
                 losses_dev.append(np.asarray(loss_dev).mean())
                 
-                f1 = results_dev['total']['f']
-                print('Validation Slot F1-score: ', results_dev['total']['f'])
+                ot_precision = results_dev['ot_precision']
+                ot_recall = results_dev['ote_recall']
+                ot_f1 = results_dev['ote_f1']
+                print(f'Validation Precision: {ot_precision} | Validation Recall: {ot_recall} | Validation Slot F1-score: {ot_f1}')
+                
                 
                 if mode == 'train':
                     # Log validation loss to wandb
                     wandb.log({"val_loss": np.asarray(loss_dev).mean()})
-                    wandb.log({"f1-score": f1})
+                    wandb.log({"F1-score": ot_f1})
+                    wandb.log({"ot_precision": ot_precision})
+                    wandb.log({"ot_recall": ot_recall})
                 
                 # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
-                if f1 > best_f1:
-                    best_f1 = f1
+                if ot_f1 > best_f1:
+                    best_f1 = ot_f1
                     # save best model!
                     model_info = {'state_dict': bert_model.state_dict(), 'lang':lang}
                     torch.save(model_info, model_path)
@@ -139,4 +144,8 @@ if __name__ == "__main__":
         bert_model.load_state_dict(checkpoint['model'])
         results_test, _ = eval_loop(test_loader, criterion_slots, 
                                             bert_model, lang, tokenizer, device)    
-        print('F1-score: ', results_test['total']['f'])
+        ot_precision = results_test['ot_precision']
+        ot_recall = results_test['ote_recall']
+        ot_f1 = results_test['ote_f1']
+        print(f'Test Precision: {ot_precision} | Test Recall: {ot_recall} | Test Slot F1-score: {ot_f1}')
+        
