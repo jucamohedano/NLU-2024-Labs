@@ -18,11 +18,11 @@ from torch.utils.data import DataLoader
 
 def init_args():
     parser = argparse.ArgumentParser(description="Bert training for Aspect Term Extraction (ATE)")
-    parser.add_argument("-mode", type=str, default='eval', help="Model mode: train or eval")
+    parser.add_argument("--mode", type=str, default='eval', help="Model mode: train or eval")
+    parser.add_argument("--use_wandb", type=str, default='true', help="Use wandb to log training results.")
     return parser
 
 def init_wandb():
-    import wandb
     # Set your Wandb token
     wandb_token = os.environ["WANDB_TOKEN"]
 
@@ -43,9 +43,11 @@ if __name__ == "__main__":
     model_path = 'bin/best_model.pt'
 
     mode = parser.parse_args().mode
-    if mode == 'train':
+    use_wandb = parser.parse_args().use_wandb
+    if mode == 'train' and use_wandb:
+        import wandb
         init_wandb()
-    print(f'Running script in mode: {mode}. If you desire to change it use the -mode argument, i.e. python main.py -mode eval')
+    print(f'Running script in mode: {mode}. If you desire to change it use the --mode argument, i.e. python main.py --mode train')
     train, val, test, vocab, _, ote_tag_vocab, _ = data_loader(parser)
 
     PAD_ID = vocab['PADDING']
@@ -59,9 +61,9 @@ if __name__ == "__main__":
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
     # ote_tags because we only want to predict the aspect, ts_tags also predict sentiment
-    train_dataset = BertABSADataset(train, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
-    dev_dataset = BertABSADataset(val, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
-    test_dataset = BertABSADataset(test, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
+    train_dataset = BertATEDataset(train, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
+    dev_dataset = BertATEDataset(val, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
+    test_dataset = BertATEDataset(test, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
 
     # Dataloader instantiations
     BATCH_SIZE = 128
@@ -70,7 +72,7 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device))
     
     # Create model
-    bert_model = BertABSAModel(out_slot).to(device)
+    bert_model = BertATEModel(out_slot).to(device)
     
     # hyperparams
     losses_train = []
@@ -88,7 +90,7 @@ if __name__ == "__main__":
     criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_ID)
 
     config = None
-    if mode == 'train':
+    if mode == 'train' and use_wandb == 'true':
         #wandb: Define your config
         config = wandb.config
         config.epochs = n_epochs
@@ -109,22 +111,22 @@ if __name__ == "__main__":
                                                                 bert_model, lang, tokenizer, device)
                 losses_dev.append(np.asarray(loss_dev).mean())
                 
-                ot_precision = results_dev['ot_precision']
-                ot_recall = results_dev['ot_recall']
-                ot_f1 = results_dev['ot_f1']
-                print(f'Validation Precision: {ot_precision} | Validation Recall: {ot_recall} | Validation Slot F1-score: {ot_f1}')
+                ote_precision = results_dev['ot_precision']
+                ote_recall = results_dev['ot_recall']
+                ote_f1 = results_dev['ot_f1']
+                print(f'Validation Precision: {ote_precision} | Validation Recall: {ote_recall} | Validation Slot F1-score: {ote_f1}')
                 
                 
                 if mode == 'train':
                     # Log validation loss to wandb
                     wandb.log({"val_loss": np.asarray(loss_dev).mean()})
-                    wandb.log({"F1-score": ot_f1})
-                    wandb.log({"ot_precision": ot_precision})
-                    wandb.log({"ot_recall": ot_recall})
+                    wandb.log({"F1-score": ote_f1})
+                    wandb.log({"ot_precision": ote_precision})
+                    wandb.log({"ot_recall": ote_recall})
                 
                 # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
-                if ot_f1 > best_f1:
-                    best_f1 = ot_f1
+                if ote_f1 > best_f1:
+                    best_f1 = ote_f1
                     # save best model!
                     model_info = {'state_dict': bert_model.state_dict(), 'lang':lang}
                     torch.save(model_info, model_path)
@@ -139,12 +141,12 @@ if __name__ == "__main__":
         # Load model
         checkpoint = torch.load(model_path)
         lang = checkpoint['lang']
-        bert_model = BertABSAModel(out_slot).to(device)
+        bert_model = BertATEModel(out_slot).to(device)
         bert_model.load_state_dict(checkpoint['model'])
         results_test, _ = eval_loop(test_loader, criterion_slots, 
                                             bert_model, lang, tokenizer, device)    
-        ot_precision = results_test['ot_precision']
-        ot_recall = results_test['ot_recall']
-        ot_f1 = results_test['ot_f1']
-        print(f'Test Precision: {ot_precision} | Test Recall: {ot_recall} | Test Slot F1-score: {ot_f1}')
+        ote_precision = results_test['ot_precision']
+        ote_recall = results_test['ot_recall']
+        ote_f1 = results_test['ot_f1']
+        print(f'Test Precision: {ote_precision} | Test Recall: {ote_recall} | Test F1-score: {ote_f1}')
         

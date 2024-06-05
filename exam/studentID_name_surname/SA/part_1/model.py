@@ -2,9 +2,9 @@ from transformers import BertModel
 import torch.nn as nn
 
 
-class BertABSAModel(nn.Module):
+class BertATEModel(nn.Module):
     def __init__(self, out_slot):
-        super(BertABSAModel, self).__init__()
+        super(BertATEModel, self).__init__()
 
         # Load pre-trained BERT model
         self.bert = BertModel.from_pretrained('bert-base-uncased')
