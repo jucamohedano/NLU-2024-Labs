@@ -65,7 +65,7 @@ if __name__ == "__main__":
     test_dataset = BertABSADataset(test, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
 
     # Dataloader instantiations
-    BATCH_SIZE = 1
+    BATCH_SIZE = 128
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device),  shuffle=True)
     dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device))
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device))
