@@ -102,13 +102,11 @@ if __name__ == "__main__":
     # Create our datasets
     train_dataset = IntentsAndSlots(train_raw, lang)
     dev_dataset = IntentsAndSlots(dev_raw, lang)
-    test_dataset = IntentsAndSlots(test_raw, lang)
 
     # Dataloader instantiations
     BATCH_SIZE = 128
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device),  shuffle=True)
     dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
 
     # Initialize model
     hid_size = 200
@@ -162,7 +160,9 @@ if __name__ == "__main__":
                 # For decreasing the patience you can also use the average between slot f1 and intent accuracy
                 if f1 > best_f1:
                     best_f1 = f1
-                    model_info = {'state_dict': model.state_dict(), 'lang':lang}
+                    model_info = {'state_dict': model.state_dict(), 
+                                  'lang':lang,
+                                  'test_raw':test_raw}
                     torch.save(model_info, model_path)
                     patience = PATIENCE
                 else:
@@ -170,10 +170,16 @@ if __name__ == "__main__":
                 if patience <= 0: # Early stopping with patience
                     break # Not nice but it keeps the code clean
     else:
+        del lang
+        del test_raw
+
         print("*You are in evaluation mode*")
         # Load model
         checkpoint = torch.load(model_path)
         lang = checkpoint['lang']
+        test_raw = checkpoint['test_raw']
+        test_dataset = IntentsAndSlots(test_raw, lang)
+        test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
         model = ModelIAS(hid_size, out_slot, out_int, emb_size, vocab_len, pad_index=PAD_TOKEN).to(device)
         model.load_state_dict(checkpoint['state_dict'])
         results_test, intent_test, _ = eval_loop(test_loader, criterion_slots, 
