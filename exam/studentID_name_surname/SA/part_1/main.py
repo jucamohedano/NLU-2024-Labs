@@ -2,7 +2,6 @@
 # Please write your fuctions or classes in the functions.py
 
 import os
-import wandb
 import argparse
 import numpy as np
 import torch.nn as nn
@@ -23,6 +22,7 @@ def init_args():
     return parser
 
 def init_wandb():
+    import wandb
     # Set your Wandb token
     wandb_token = os.environ["WANDB_TOKEN"]
 
@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     lang = Lang(slots, pad_id=PAD_ID, punct_id=PUNCT_ID)
     out_slot = len(lang.slot2id)
-    
+
     # Load BERT tokenizer
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
