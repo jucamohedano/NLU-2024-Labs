@@ -47,29 +47,28 @@ if __name__ == "__main__":
     if mode == 'train':
         init_wandb()
     print(f'Running script in mode: {mode}. If you desire to change it use the -mode argument, i.e. python main.py -mode eval')
-    train, val, test, vocab, _, ote_tag_vocab, ts_tag_vocab = data_loader(parser)
+    train, val, test, vocab, _, ote_tag_vocab, _ = data_loader(parser)
 
-    # PAD_TOKEN = vocab['PADDING']
-    # PUNCT_TOKEN = vocab['PUNCT']
-    PUNCT_TOKEN = PAD_TOKEN = 0
+    PAD_ID = vocab['PADDING']
+    PUNCT_ID = vocab['PUNCT']
     slots = list(ote_tag_vocab.keys())
 
-    lang = Lang(slots, pad_token=PAD_TOKEN, punct_token=PUNCT_TOKEN)
+    lang = Lang(slots, pad_id=PAD_ID, punct_id=PUNCT_ID)
     out_slot = len(lang.slot2id)
 
     # Load BERT tokenizer
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
     # ote_tags because we only want to predict the aspect, ts_tags also predict sentiment
-    train_dataset = BertABSADataset(train, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_token=PAD_TOKEN, punct_token=PUNCT_TOKEN)
-    dev_dataset = BertABSADataset(val, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_token=PAD_TOKEN, punct_token=PUNCT_TOKEN)
-    test_dataset = BertABSADataset(test, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_token=PAD_TOKEN, punct_token=PUNCT_TOKEN)
+    train_dataset = BertABSADataset(train, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
+    dev_dataset = BertABSADataset(val, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
+    test_dataset = BertABSADataset(test, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
 
     # Dataloader instantiations
-    BATCH_SIZE = 128
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device),  shuffle=True)
-    dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
+    BATCH_SIZE = 1
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device),  shuffle=True)
+    dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device))
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device))
     
     # Create model
     bert_model = BertABSAModel(out_slot).to(device)
@@ -87,7 +86,7 @@ if __name__ == "__main__":
 
     # Define optimizer
     optimizer = optim.Adam(bert_model.parameters(), lr=lr)
-    criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_TOKEN)
+    criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_ID)
 
     config = None
     if mode == 'train':

@@ -52,25 +52,27 @@ def eval_loop(data, criterion_slots, model, lang, tokenizer, device):
                 gt_ids = sample['y_slots'][id_seq].tolist()
                 gt_slots = [lang.id2slot[elem] for elem in gt_ids[1:length-1]]
                 utterance = tokenizer.convert_ids_to_tokens(utt_ids)
+                # utt_words = sample['utt_words'][0]
+                utt_words = utterance
+                if utt_words[0] == '[CLS]':
+                    utt_words = utt_words[1:-1]
                 to_decode = seq[1:length-1].tolist()
                 tmp_seq = []
                 tmp_ref = []
                 assert len(to_decode) == len(gt_slots)
                 for id_el, slot_label in enumerate(gt_slots):
-                    if slot_label == 'pad':
+                    if slot_label == 'PAD':
                         # If a word is split into multiple tokens, then it merges back into one single word-token
-                        # for the sake of evaluation, e.g. tokenize(['whats'])=['[CLS]', 'what', "'", 's', '[SEP]']
+                        # for the sake of evaluation, e.g. tokenize(["what's"])=['[CLS]', 'what', "'", 's', '[SEP]']
                         # instead we want to put back together what's for the purpose of slot labeling
-                        w = tmp_ref[-1][0]+utterance[id_el] # merge wordpieces. 
+                        w = tmp_ref[-1][0]+utt_words[id_el] # merge wordpieces. 
                         _, label = tmp_ref.pop() # pop incomplete word
                         tmp_ref.append((w, label)) # add newly constructed word
                         continue
-                    tmp_ref.append((utterance[id_el], slot_label))
+                    tmp_ref.append((utt_words[id_el], slot_label))
                     to_decode_id = to_decode[id_el]
-                    # assume that PAD_TOKEN and PUNCT_TOKEN are the same
-                    # We use PAD_TOKEN=PUNCT_TOKEN=0 as in training so that we use ignore_index=0 in CE loss
-                    if to_decode_id == 1: to_decode_id = 0
-                    tmp_seq.append((utterance[id_el], lang.id2slot[to_decode_id]))
+                    # if to_decode_id == 1: to_decode_id = 0
+                    tmp_seq.append((utt_words[id_el], lang.id2slot[to_decode_id]))
                 hyp_slots.append(tmp_seq)
                 ref_slots.append(tmp_ref)
 

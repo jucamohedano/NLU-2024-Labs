@@ -19,16 +19,16 @@ def load_data(path):
 
 
 class Lang():
-    def __init__(self, slots, pad_token, punct_token):
-        self.pad_token = pad_token
-        self.punct_token = punct_token
+    def __init__(self, slots, pad_id, punct_id):
+        self.pad_id = pad_id
+        self.punct_id = punct_id
         self.slot2id = self.lab2id(slots)
         self.id2slot = {v:k for k, v in self.slot2id.items()}
     
     def lab2id(self, elements):
         vocab = {}
-        vocab['PAD'] = self.pad_token
-        vocab['PUNCT'] = self.punct_token
+        vocab['PAD'] = self.pad_id
+        vocab['PUNCT'] = self.punct_id
         for elem in elements:
                 vocab[elem] = len(vocab)
         return vocab
@@ -42,7 +42,7 @@ class BertABSADataset(data.Dataset):
     """
 
     # Mandatory methods are __init__, __len__ and __getitem__
-    def __init__(self, dataset, lang, tokenizer, tagging_scheme, pad_token, punct_token):
+    def __init__(self, dataset, lang, tokenizer, tagging_scheme, pad_id, punct_id):
         """
         Initialize the dataset by mapping utterances, slots, and intents to integer IDs.
 
@@ -50,8 +50,8 @@ class BertABSADataset(data.Dataset):
         :param lang: Language object containing mapping information.
         :param unk: Unknown token (default is 'unk').
         """
-        self.punct_token = punct_token
-        self.pad_token = pad_token
+        self.punct_id = punct_id
+        self.pad_id = pad_id
         self.tokenizer = tokenizer
         self.utterances = []
         self.utt_words = []
@@ -82,15 +82,6 @@ class BertABSADataset(data.Dataset):
         slots = self.slot_ids[idx]
         ids = self.utt_ids[idx]
         mask = self.utt_masks[idx]
-        # seq = []
-        # for sub in utt_words:
-        #     for w in sub:
-        #         seq.append(w) if w not in ['[CLS]', '[SEP]'] else None
-        # utt_inputs = self.tokenizer(seq, 
-        #                        return_tensors="pt", 
-        #                        return_token_type_ids=False)
-                
-        # mask = utt_ids['attention_mask']
 
         return {
             'ids': torch.tensor(ids, dtype=torch.long),
@@ -117,8 +108,6 @@ class BertABSADataset(data.Dataset):
             tmp_seq = []
             sentence_tokens = []
             sentence_masks = []
-            # example of seq: 'O O O O O O O O B-fromloc.city_name O B-toloc.city_name'
-            # example of utt: 'what is the cost for these flights from baltimore to philadelphia'
             assert len(slots_list) == len(words_list), f"seq: {slots_list}, utt: {words_list}" # sanity check
             tokenized_words_list = self.tokenizer(words_list)
             
@@ -129,7 +118,7 @@ class BertABSADataset(data.Dataset):
                 middle_tokens = word_tokens[1:-1]
                 num_tokens = len(middle_tokens)
                 if label in mapper:
-                    tmp_seq.extend([mapper[label]] + [self.pad_token]*(num_tokens-1)) # only map the 1st token and add padding for the rest
+                    tmp_seq.extend([mapper[label]] + [self.pad_id]*(num_tokens-1)) # only map the 1st token and add padding for the rest
                 else:
                     raise ValueError(f"label: {label} not in mapper")
                     # tmp_seq.extend(mapper[self.unk])
@@ -139,38 +128,17 @@ class BertABSADataset(data.Dataset):
                 sentence_tokens.extend(middle_tokens)
                 middle_masks = word_masks[1:-1]
                 sentence_masks.extend(middle_masks)
-            # for label, word in zip(seq, utt):
-            #     if not word == 'PUNCT':
-            #         tokenized_word = self.tokenizer(word)['input_ids'][1:-1] # don't take the [CLS] and [SEP] tokens
-            #         tmp_tokens_seq.extend(tokenized_word)
-            #     else:
-            #         label = word # label='PUNCT'
-            #         tokenized_word = []
-            #         tmp_tokens_seq.extend('PUNCT')
-            #     if label in mapper:
-            #         tmp_seq.extend([mapper[label]] + [self.pad_token]*(len(tokenized_word)-1)) # only map the 1st token and add padding for the rest
-            #     else:
-            #         tmp_seq.extend(mapper[self.unk])
-            # make sure that he number of slots is equal to the number of token ids!
-            # assert len(tmp_seq) == len(tokens_list) == len(masks_list)
             assert len(tmp_seq) == len(sentence_tokens) == len(sentence_masks)
-            # tmp_seq = merge_lists(tmp_seq)
-            # tokens_list = merge_lists(tokens_list)
-            # masks_list = merge_lists(masks_list)
 
-            # assert len(utt)+2 == len(tmp_seq)+2, f"len(utt)+2: {len(utt)+2}, len(tmp_seq)+2: {len(tmp_seq)+2}"
-            # assert len(tmp_seq)+2 == len(self.tokenizer(utt, is_split_into_words=True)['input_ids']), \
-            # f"len(res): {len(tmp_seq)+2}, \
-            # len(tokenizer(utt)['input_ids']): {len(self.tokenizer(utt, is_split_into_words=True)['input_ids'])}" # sanity check
-            res.append([self.pad_token]+tmp_seq+[self.pad_token]) # add the [CLS] and [SEP] to the entire sequence
-            res_tokens.append([self.pad_token]+sentence_tokens+[self.pad_token])
-            res_masks.append([self.pad_token]+sentence_masks+[self.pad_token])
-            # res_tokens.append([self.pad_token]+tokens_list+[self.pad_token])
-            # res_masks.append([self.pad_token]+utt_masks_ids_sentence+[self.pad_token])
+            res.append([self.pad_id]+tmp_seq+[self.pad_id]) # add the [CLS] and [SEP] to the entire sequence
+            res_tokens.append([self.pad_id]+sentence_tokens+[self.pad_id])
+            res_masks.append([self.pad_id]+sentence_masks+[self.pad_id])
+            # res_tokens.append([self.pad_id]+tokens_list+[self.pad_id])
+            # res_masks.append([self.pad_id]+utt_masks_ids_sentence+[self.pad_id])
         return res, res_tokens, res_masks
 
 
-def collate_fn(data, pad_token, device):
+def collate_fn(data, pad_id, device):
 
     def merge(sequences):
         '''
@@ -180,9 +148,9 @@ def collate_fn(data, pad_token, device):
         lengths = [max(seq.shape) for seq in sequences]
         max_len = 1 if max(lengths)==0 else max(lengths)
         # Pad token is zero in our case
-        # So we create a matrix full of PAD_TOKEN (i.e. 0) with the shape 
+        # So we create a matrix full of PAD_ID (i.e. 0) with the shape 
         # batch_size X maximum length of a sequence
-        padded_seqs = torch.LongTensor(len(sequences),max_len).fill_(pad_token)
+        padded_seqs = torch.LongTensor(len(sequences),max_len).fill_(pad_id)
         for i, seq in enumerate(sequences):
             end = lengths[i]
             padded_seqs[i, :end] = seq # We copy each sequence into the matrix

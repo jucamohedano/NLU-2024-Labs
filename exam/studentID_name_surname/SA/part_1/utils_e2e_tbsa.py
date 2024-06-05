@@ -864,11 +864,11 @@ def tag2ot(ote_tag_sequence):
     beg, end = -1, -1
     for i in range(n_tags):
         tag = ote_tag_sequence[i]
-        if tag == 'S':
+        if tag[1] == 'S':
             ot_sequence.append((i, i))
-        elif tag == 'B':
+        elif tag[1] == 'B':
             beg = i
-        elif tag == 'E':
+        elif tag[1] == 'E':
             end = i
             if end > beg > -1:
                 ot_sequence.append((beg, end))
