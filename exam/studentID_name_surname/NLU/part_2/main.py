@@ -53,7 +53,7 @@ if __name__ == "__main__":
         import wandb
         init_wandb()
 
-    print(f'Running script in mode: {mode}. If you desire to change it use the -mode argument, i.e. python main.py --mode eval')
+    print(f'Running script in mode: {mode}. If you desire to change it use the --mode argument, i.e. python main.py --mode eval')
 
     PAD_TOKEN = 0
 
