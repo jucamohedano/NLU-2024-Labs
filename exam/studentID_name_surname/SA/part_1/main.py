@@ -8,7 +8,6 @@ import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 
-from utils import Lang
 from utils import *
 from model import *
 from functions import *
@@ -19,7 +18,7 @@ from torch.utils.data import DataLoader
 
 
 def init_args():
-    parser = argparse.ArgumentParser(description="Bert training for ABSA task")
+    parser = argparse.ArgumentParser(description="Bert training for Aspect Term Extraction (ATE)")
     parser.add_argument("-mode", type=str, default='eval', help="Model mode: train or eval")
     return parser
 
@@ -55,7 +54,7 @@ if __name__ == "__main__":
 
     lang = Lang(slots, pad_id=PAD_ID, punct_id=PUNCT_ID)
     out_slot = len(lang.slot2id)
-
+    
     # Load BERT tokenizer
     tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 

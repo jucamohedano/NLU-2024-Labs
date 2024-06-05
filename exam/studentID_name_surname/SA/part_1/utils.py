@@ -133,8 +133,6 @@ class BertABSADataset(data.Dataset):
             res.append([self.pad_id]+tmp_seq+[self.pad_id]) # add the [CLS] and [SEP] to the entire sequence
             res_tokens.append([self.pad_id]+sentence_tokens+[self.pad_id])
             res_masks.append([self.pad_id]+sentence_masks+[self.pad_id])
-            # res_tokens.append([self.pad_id]+tokens_list+[self.pad_id])
-            # res_masks.append([self.pad_id]+utt_masks_ids_sentence+[self.pad_id])
         return res, res_tokens, res_masks
 
 
