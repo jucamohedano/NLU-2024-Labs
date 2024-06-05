@@ -12,7 +12,7 @@ from model import *
 from functions import *
 from tqdm import tqdm
 from functools import partial
-from transformers import BertTokenizer
+from transformers import BertTokenizer, RobertaTokenizer
 from torch.utils.data import DataLoader
 
 
@@ -20,6 +20,7 @@ def init_args():
     parser = argparse.ArgumentParser(description="Bert training for Aspect Term Extraction (ATE)")
     parser.add_argument("--mode", type=str, default='eval', help="Model mode: train or eval")
     parser.add_argument("--use_wandb", type=str, default='true', help="Use wandb to log training results.")
+    parser.add_argument("--model_type", type=str, default='bert', help="Model to use.")
     return parser
 
 def init_wandb():
@@ -44,6 +45,7 @@ if __name__ == "__main__":
 
     mode = parser.parse_args().mode
     use_wandb = parser.parse_args().use_wandb
+    model_type = parser.parse_args().model_type
     if mode == 'train' and use_wandb:
         import wandb
         init_wandb()
@@ -58,12 +60,16 @@ if __name__ == "__main__":
     out_slot = len(lang.slot2id)
 
     # Load BERT tokenizer
-    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    tokenizr = None
+    if model_type == "roberta":
+        tokenizer = RobertaTokenizer.from_pretrained("FacebookAI/roberta-base")
+    else:
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
     # ote_tags because we only want to predict the aspect, ts_tags also predict sentiment
-    train_dataset = BertATEDataset(train, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
-    dev_dataset = BertATEDataset(val, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
-    test_dataset = BertATEDataset(test, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
+    train_dataset = ATEDataset(train, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
+    dev_dataset = ATEDataset(val, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
+    test_dataset = ATEDataset(test, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
 
     # Dataloader instantiations
     BATCH_SIZE = 128
@@ -72,7 +78,11 @@ if __name__ == "__main__":
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device))
     
     # Create model
-    bert_model = BertATEModel(out_slot).to(device)
+    model = None
+    if model_type == 'roberta':
+        model = RoBertaATEModel(out_slot).to(device)
+    else:
+        model = BertATEModel(out_slot).to(device)
     
     # hyperparams
     losses_train = []
@@ -86,7 +96,7 @@ if __name__ == "__main__":
     lr = 0.00001
 
     # Define optimizer
-    optimizer = optim.Adam(bert_model.parameters(), lr=lr)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_ID)
 
     config = None
@@ -101,14 +111,14 @@ if __name__ == "__main__":
     if mode == 'train':
         for x in tqdm(range(1,n_epochs)):
             loss = train_loop(train_loader, optimizer, criterion_slots, 
-                            bert_model, device, clip=CLIP)
+                            model, device, clip=CLIP)
             # Log training loss to wandb
             if mode == 'train': wandb.log({"train_loss": np.asarray(loss).mean()})
             if x % 5 == 0: # We check the performance every 5 epochs
                 sampled_epochs.append(x)
                 losses_train.append(np.asarray(loss).mean())
                 results_dev, loss_dev = eval_loop(dev_loader, criterion_slots, 
-                                                                bert_model, lang, tokenizer, device)
+                                                                model, lang, tokenizer, device)
                 losses_dev.append(np.asarray(loss_dev).mean())
                 
                 ote_precision = results_dev['ot_precision']
@@ -128,7 +138,7 @@ if __name__ == "__main__":
                 if ote_f1 > best_f1:
                     best_f1 = ote_f1
                     # save best model!
-                    model_info = {'state_dict': bert_model.state_dict(), 'lang':lang}
+                    model_info = {'state_dict': model.state_dict(), 'lang':lang}
                     torch.save(model_info, model_path)
                     patience = PATIENCE
                 else:
@@ -141,10 +151,13 @@ if __name__ == "__main__":
         # Load model
         checkpoint = torch.load(model_path)
         lang = checkpoint['lang']
-        bert_model = BertATEModel(out_slot).to(device)
-        bert_model.load_state_dict(checkpoint['model'])
+        if model_type == 'roberta':
+            model = RoBertaATEModel(out_slot).to(device)
+        else:  
+            model = BertATEModel(out_slot).to(device)
+        model.load_state_dict(checkpoint['model'])
         results_test, _ = eval_loop(test_loader, criterion_slots, 
-                                            bert_model, lang, tokenizer, device)    
+                                            model, lang, tokenizer, device)    
         ote_precision = results_test['ot_precision']
         ote_recall = results_test['ot_recall']
         ote_f1 = results_test['ot_f1']
