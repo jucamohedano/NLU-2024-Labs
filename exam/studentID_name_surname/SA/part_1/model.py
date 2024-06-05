@@ -26,7 +26,7 @@ class RoBertaATEModel(nn.Module):
         super(RoBertaATEModel, self).__init__()
 
         # Load pre-trained BERT model
-        self.roberta = RobertaModel.from_pretrained("FacebookAI/roberta-base")
+        self.roberta = RobertaModel.from_pretrained("roberta-base")
         # Freeze BERT layers and replace top layers
         # for param in self.bert.parameters():
         #     param.requires_grad = False

@@ -62,7 +62,7 @@ if __name__ == "__main__":
     # Load BERT tokenizer
     tokenizr = None
     if model_type == "roberta":
-        tokenizer = RobertaTokenizer.from_pretrained("FacebookAI/roberta-base")
+        tokenizer = RobertaTokenizer.from_pretrained("roberta-base")
     else:
         tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
 
@@ -72,7 +72,7 @@ if __name__ == "__main__":
     test_dataset = ATEDataset(test, lang, tokenizer=tokenizer, tagging_scheme='ote_tags', pad_id=PAD_ID, punct_id=PUNCT_ID)
 
     # Dataloader instantiations
-    BATCH_SIZE = 128
+    BATCH_SIZE = 8
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device),  shuffle=True)
     dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device))
     test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_id=PAD_ID, device=device))
