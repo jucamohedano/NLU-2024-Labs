@@ -54,8 +54,6 @@ def eval_loop(data, criterion_slots, model, lang, tokenizer, device):
                 utterance = tokenizer.convert_ids_to_tokens(utt_ids)
                 # utt_words = sample['utt_words'][0]
                 utt_words = utterance
-                if utt_words[0] == '[CLS]':
-                    utt_words = utt_words[1:-1]
                 to_decode = seq[1:length-1].tolist()
                 tmp_seq = []
                 tmp_ref = []
