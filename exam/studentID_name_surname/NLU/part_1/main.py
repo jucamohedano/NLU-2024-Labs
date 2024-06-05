@@ -15,6 +15,7 @@ from functools import partial
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 
+torch.manual_seed(0)
 
 def init_args():
     parser = argparse.ArgumentParser(description="Bert training for Aspect Term Extraction (ATE)")

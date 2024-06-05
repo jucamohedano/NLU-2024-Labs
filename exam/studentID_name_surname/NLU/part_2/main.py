@@ -18,6 +18,7 @@ from transformers import BertTokenizer
 from torch.utils.data import DataLoader
 from sklearn.model_selection import train_test_split
 
+torch.manual_seed(0)
 
 def init_args():
     parser = argparse.ArgumentParser(description="Bert training for Aspect Term Extraction (ATE)")
@@ -105,13 +106,11 @@ if __name__ == "__main__":
 
     train_dataset = BertIntentsAndSlots(train_raw, lang, tokenizer=tokenizer, pad_token=PAD_TOKEN)
     dev_dataset = BertIntentsAndSlots(dev_raw, lang, tokenizer=tokenizer, pad_token=PAD_TOKEN)
-    test_dataset = BertIntentsAndSlots(test_raw, lang, tokenizer=tokenizer, pad_token=PAD_TOKEN)
 
     # Dataloader instantiations
     BATCH_SIZE = 128
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device),  shuffle=True)
     dev_loader = DataLoader(dev_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
-    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
 
     # Create model
     bert_model = BertJoint(out_slot, out_int).to(device)
@@ -166,7 +165,9 @@ if __name__ == "__main__":
                 # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
                 if f1 > best_f1:
                     best_f1 = f1
-                    model_info = {'state_dict': bert_model.state_dict(), 'lang':lang}
+                    model_info = {'state_dict': bert_model.state_dict(), 
+                                  'lang':lang,
+                                  'test_raw':test_raw}
                     torch.save(model_info, model_path)
                     patience = PATIENCE
                 else:
@@ -175,10 +176,17 @@ if __name__ == "__main__":
                     print("no more patience, finishing training")
                     break # Not nice but it keeps the code clean
     else:
+        del lang
+        del test_raw
+
         print("*You are in evaluation mode*")
         # Load model
         checkpoint = torch.load(model_path)
         lang = checkpoint['lang']
+        test_raw = checkpoint['test_raw']
+        test_dataset = BertIntentsAndSlots(test_raw, lang, tokenizer=tokenizer, pad_token=PAD_TOKEN)
+        test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, collate_fn=partial(collate_fn, pad_token=PAD_TOKEN, device=device))
+
         bert_model = BertJoint(out_slot, out_int).to(device)
         bert_model.load_state_dict(checkpoint['state_dict'])
 
