@@ -46,7 +46,7 @@ if __name__ == "__main__":
     mode = parser.parse_args().mode
     use_wandb = parser.parse_args().use_wandb
     model_type = parser.parse_args().model_type
-    if mode == 'train' and use_wandb:
+    if mode == 'train' and use_wandb == 'true':
         import wandb
         init_wandb()
     print(f'Running script in mode: {mode}. If you desire to change it use the --mode argument, i.e. python main.py --mode train')
@@ -115,7 +115,7 @@ if __name__ == "__main__":
             loss = train_loop(train_loader, optimizer, criterion_slots, 
                             model, device, clip=CLIP)
             # Log training loss to wandb
-            if mode == 'train': wandb.log({"train_loss": np.asarray(loss).mean()})
+            if use_wandb == 'true': wandb.log({"train_loss": np.asarray(loss).mean()})
             if x % 5 == 0: # We check the performance every 5 epochs
                 sampled_epochs.append(x)
                 losses_train.append(np.asarray(loss).mean())
@@ -129,7 +129,7 @@ if __name__ == "__main__":
                 print(f'Validation Precision: {ote_precision} | Validation Recall: {ote_recall} | Validation Slot F1-score: {ote_f1}')
                 
                 
-                if mode == 'train':
+                if use_wandb == 'true':
                     # Log validation loss to wandb
                     wandb.log({"val_loss": np.asarray(loss_dev).mean()})
                     wandb.log({"F1-score": ote_f1})
