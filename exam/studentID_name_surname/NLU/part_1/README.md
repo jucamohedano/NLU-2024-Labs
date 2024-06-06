@@ -1,3 +1,8 @@
-**This file is not mandatory**
-But if you want, here your can add your comments or anything that you want to share with us
-regarding the exercise.
+**Important notes**
+
+New conda environment yaml file is provided with the additional dependency of wandb package.
+
+```bash
+conda env create -f nlu24_project_env.yaml -n nlu24
+conda activate nlu24
+```
