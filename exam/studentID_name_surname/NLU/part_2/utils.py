@@ -175,3 +175,4 @@ def collate_fn(data, pad_token, device):
     new_item["y_slots"] = y_slots
     new_item["slots_len"] = y_lengths
     return new_item
+

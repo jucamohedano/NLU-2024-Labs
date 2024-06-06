@@ -194,3 +194,4 @@ if __name__ == "__main__":
                                                 criterion_intents, bert_model, lang, tokenizer, device)    
         print('Slot F1: ', results_test['total']['f'])
         print('Intent Accuracy:', intent_test['accuracy'])
+
