@@ -669,7 +669,7 @@ def build_dataset(ds_name, input_win=1, tagging_schema='BIO', stm_win=1):
     # This is equivalent to np.random.permutation(np.arange(n_train))[:n_val]
     
     val_sample_ids = np.random.choice(n_train, n_val, replace=False)
-    print("The first 15 validation samples:", val_sample_ids[:15])
+    # print("The first 15 validation samples:", val_sample_ids[:15])
     val_set, tmp_train_set = [], []
     val_set_label_mapping, tmp_train_set_label_mapping = [], []
     for i in range(n_train):
