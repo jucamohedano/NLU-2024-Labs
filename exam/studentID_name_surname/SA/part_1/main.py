@@ -2,6 +2,7 @@
 # Please write your fuctions or classes in the functions.py
 
 import os
+import math
 import argparse
 import numpy as np
 import torch.nn as nn
@@ -89,7 +90,7 @@ if __name__ == "__main__":
     losses_train = []
     losses_dev = []
     sampled_epochs = []
-    best_f1 = 0
+    best_loss_dev = math.inf
     n_epochs = 100
     CLIP = 5
     PATIENCE = 3
@@ -136,8 +137,8 @@ if __name__ == "__main__":
                     wandb.log({"ot_recall": ote_recall})
                 
                 # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
-                if ote_f1 > best_f1:
-                    best_f1 = ote_f1
+                if ote_f1 > best_loss_dev:
+                    best_loss_dev = losses_dev[-1]
                     # save best model!
                     model_info = {'state_dict': model.state_dict(), 'lang':lang}
                     torch.save(model_info, model_path)
