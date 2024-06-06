@@ -215,8 +215,6 @@ def data_loader(parser):
     args = parser.parse_args()
     if args.ds_name == 'laptop14':
         random_seed = 13456
-    if args.ds_name.startswith("twitter"):
-        random_seed = 7788
     args.dynet_seed = dy_seed
     args.random_seed = random_seed
     random.seed(random_seed)
