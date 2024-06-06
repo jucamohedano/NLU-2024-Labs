@@ -39,7 +39,6 @@ if __name__ == "__main__":
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print(f'The device selected: {device}')
 
-    # load data
     parser = init_args()
     model_path = 'bin/best_model.pt'
 
@@ -50,6 +49,8 @@ if __name__ == "__main__":
         import wandb
         init_wandb()
     print(f'Running script in mode: {mode}. If you desire to change it use the --mode argument, i.e. python main.py --mode train')
+    
+    # load data
     train, val, test, vocab, _, ote_tag_vocab, _ = data_loader(parser)
 
     PAD_ID = vocab['PADDING']
