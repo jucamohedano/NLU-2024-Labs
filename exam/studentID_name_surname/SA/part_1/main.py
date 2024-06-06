@@ -95,10 +95,11 @@ if __name__ == "__main__":
     CLIP = 5
     PATIENCE = 3
     patience = PATIENCE
-    lr = 0.00001
+    lr = 0.
+    betas = (0.9,0.99)
 
     # Define optimizer
-    optimizer = optim.Adam(model.parameters(), lr=lr)
+    optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas)
     criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_ID)
 
     config = None
@@ -109,6 +110,7 @@ if __name__ == "__main__":
         config.learning_rate = lr
         config.batch_size = BATCH_SIZE
         config.patience = PATIENCE
+        config.betas = betas
 
     if mode == 'train':
         for x in tqdm(range(1,n_epochs)):
