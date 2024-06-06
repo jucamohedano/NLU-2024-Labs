@@ -95,7 +95,7 @@ if __name__ == "__main__":
     CLIP = 5
     PATIENCE = 3
     patience = PATIENCE
-    lr = 0.
+    lr = 0.00001
     betas = (0.9,0.99)
 
     # Define optimizer
