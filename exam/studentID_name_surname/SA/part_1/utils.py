@@ -208,6 +208,7 @@ def data_loader(parser):
     parser.add_argument('-epsilon', type=float, default=0.5, help="maximum proportions of the boundary-based scores")
     
     
+    # use the default arguments used in the original code to create the dataset
     dy_seed = 1314159
     random_seed = 1234
     #random_seed = 1972
