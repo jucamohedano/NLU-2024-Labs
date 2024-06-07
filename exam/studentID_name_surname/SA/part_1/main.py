@@ -139,7 +139,7 @@ if __name__ == "__main__":
                     wandb.log({"ot_recall": ote_recall})
                 
                 # For decreasing the PATIENCE you can also use the average between slot f1 and intent accuracy
-                if losses_dev[-1] > best_loss_dev:
+                if losses_dev[-1] < best_loss_dev:
                     best_loss_dev = losses_dev[-1]
                     # save best model!
                     model_info = {'state_dict': model.state_dict(), 'lang':lang}
