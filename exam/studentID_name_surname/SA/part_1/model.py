@@ -9,8 +9,8 @@ class BertATEModel(nn.Module):
         # Load pre-trained BERT model
         self.bert = BertModel.from_pretrained('bert-base-uncased')
         # Freeze BERT layers and replace top layers
-        for param in self.bert.parameters():
-            param.requires_grad = False
+        # for param in self.bert.parameters():
+        #     param.requires_grad = False
         # Define output layers for multi-task learning
         self.slot_classifier = nn.Linear(self.bert.config.hidden_size, out_slot) # token-label classifcation head
     

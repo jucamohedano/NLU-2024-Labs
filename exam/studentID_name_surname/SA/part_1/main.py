@@ -96,10 +96,10 @@ if __name__ == "__main__":
     PATIENCE = 3
     patience = PATIENCE
     lr = 0.00001
-    betas = (0.9,0.99)
+    # betas = (0.9,0.99) # use default betas
 
     # Define optimizer
-    optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
     criterion_slots = nn.CrossEntropyLoss(ignore_index=PAD_ID)
 
     config = None
