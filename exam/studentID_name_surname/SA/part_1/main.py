@@ -110,7 +110,7 @@ if __name__ == "__main__":
         config.learning_rate = lr
         config.batch_size = BATCH_SIZE
         config.patience = PATIENCE
-        config.betas = betas
+        # config.betas = betas
 
     if mode == 'train':
         for x in tqdm(range(1,n_epochs)):
